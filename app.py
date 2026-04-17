@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. POSTAVKE STRANICE I NAPREDNI DIZAJN (CSS)
+# 1. POSTAVKE STRANICE I DIZAJN
 st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -24,44 +24,40 @@ st.markdown("""
         transform: translate(-50%, -50%) rotate(-30deg);
         font-size: 5rem;
         font-weight: bold;
-        color: rgba(255, 255, 255, 0.03); /* Vrlo prozirno bijela */
+        color: rgba(255, 255, 255, 0.03);
         white-space: nowrap;
         pointer-events: none;
         z-index: 0;
     }
 
-    /* Postavljanje SVEGA teksta na bijelu boju */
+    /* SVEOPĆI BIJELI TEKST (Osim uploada) */
     html, body, [class*="st-"] {
         color: #ffffff !important;
     }
-
     h1, h2, h3, p, span, label {
         color: #ffffff !important;
     }
 
-    /* Animacija naslova */
-    h1 {
-        color: #00d2ff !important;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        animation: fadeInDown 1s ease-in-out;
-        position: relative;
-        z-index: 1;
+    /* CRNI TEKST UNUTAR UPLOAD POLJA (Za bolju vidljivost) */
+    [data-testid="stFileUploader"] section div {
+        color: #000000 !important;
+    }
+    [data-testid="stFileUploader"] small {
+        color: #333333 !important; /* Tamno siva za '200MB per file' */
     }
 
     /* Stil polja za upload */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.05);
+        background-color: rgba(255, 255, 255, 0.8) !important; /* Svjetlija pozadina uploada */
         border: 2px dashed #00d2ff;
         border-radius: 20px;
         padding: 20px;
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        position: relative;
-        z-index: 1;
     }
     [data-testid="stFileUploader"]:hover {
         transform: scale(1.02);
         border-color: #00ff88;
-        background-color: rgba(255, 255, 255, 0.1);
+        background-color: rgba(255, 255, 255, 0.95) !important;
         box-shadow: 0px 15px 30px rgba(0,0,0,0.4);
     }
 
@@ -75,14 +71,6 @@ st.markdown("""
         font-weight: bold;
         transition: all 0.3s ease;
         width: 100%;
-        box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
-    }
-
-    /* Info poruka na dnu */
-    .stAlert {
-        background-color: rgba(255, 255, 255, 0.1) !important;
-        color: #ffffff !important;
-        border-radius: 15px !important;
     }
 
     @keyframes fadeInDown {

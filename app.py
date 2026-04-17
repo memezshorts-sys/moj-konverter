@@ -84,6 +84,26 @@ if uploaded_file:
                 )
         else:
             st.warning("Nije pronađena transakcija. Provjerite je li ovo ispravan RBA izvadak.")
+
+    # CSS za animaciju polja za upload
+st.markdown("""
+    <style>
+    /* Ciljamo okvir za upload datoteka */
+    [data-testid="stFileUploader"] {
+        transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+        border-radius: 10px;
+        padding: 5px;
+    }
+    
+    /* Animacija kad se prijeđe mišem (Hover) */
+    [data-testid="stFileUploader"]:hover {
+        transform: scale(1.02); /* Blago povećanje */
+        box-shadow: 0px 10px 20px rgba(0,0,0,0.1); /* Sjena */
+        border: 1px solid #ff4b4b; /* Promjena boje ruba */
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
             
     except Exception as e:
         st.error(f"Došlo je do greške: {e}")

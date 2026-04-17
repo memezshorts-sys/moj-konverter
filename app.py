@@ -6,7 +6,7 @@ from datetime import datetime
 import io
 
 # 1. POSTAVKE STRANICE I NAPREDNI DIZAJN (CSS)
-st.set_page_config(page_title="Lucced Konverter", page_icon="🏦", layout="centered")
+st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
@@ -15,21 +15,37 @@ st.markdown("""
         background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%);
     }
 
+    /* VODENI ŽIG (Panda knjigovodstvo u pozadini) */
+    .stApp::before {
+        content: 'Panda knjigovodstvo';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 5rem;
+        font-weight: bold;
+        color: rgba(255, 255, 255, 0.03); /* Vrlo prozirno bijela */
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 0;
+    }
+
     /* Postavljanje SVEGA teksta na bijelu boju */
     html, body, [class*="st-"] {
         color: #ffffff !important;
     }
 
-    /* Posebno za naslove i podnaslove */
     h1, h2, h3, p, span, label {
         color: #ffffff !important;
     }
 
     /* Animacija naslova */
     h1 {
-        color: #00d2ff !important; /* Naslov ostavljamo u svijetlo plavoj radi kontrasta */
+        color: #00d2ff !important;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         animation: fadeInDown 1s ease-in-out;
+        position: relative;
+        z-index: 1;
     }
 
     /* Stil polja za upload */
@@ -39,6 +55,8 @@ st.markdown("""
         border-radius: 20px;
         padding: 20px;
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        position: relative;
+        z-index: 1;
     }
     [data-testid="stFileUploader"]:hover {
         transform: scale(1.02);
@@ -59,19 +77,14 @@ st.markdown("""
         width: 100%;
         box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
     }
-    .stDownloadButton button:hover {
-        transform: translateY(-3px);
-        background: linear-gradient(90deg, #3a7bd5 0%, #00d2ff 100%);
-    }
 
-    /* Info poruka na dnu - bijeli tekst */
+    /* Info poruka na dnu */
     .stAlert {
         background-color: rgba(255, 255, 255, 0.1) !important;
         color: #ffffff !important;
         border-radius: 15px !important;
     }
 
-    /* Animacije */
     @keyframes fadeInDown {
         from { opacity: 0; transform: translateY(-20px); }
         to { opacity: 1; transform: translateY(0); }
@@ -118,7 +131,6 @@ if uploaded_file:
         tablica_lucced = []
         ukupno_duguje = 0.0
         
-        # 1. Partner (2221)
         amount_match = re.search(r'D\s+([\d\.]+,\d{2})', full_text)
         iban_match = re.search(r'HR\d{19}', full_text.replace(" ", ""))
         
@@ -133,14 +145,12 @@ if uploaded_file:
                 tablica_lucced.append({"Konto": "2221", "Partner": "503", "Naziv": naziv, "Duguje": "{:.2f}".format(iznos), "Potražuje": "0.00"})
                 ukupno_duguje += iznos
 
-        # 2. Naknada (4650)
         if "Naknada" in full_text:
             fee_match = re.search(r'D\s+0,40', full_text)
             if fee_match:
                 tablica_lucced.append({"Konto": "4650", "Partner": "1", "Naziv": "Naknada - EURO NKS plaćanje", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno_duguje += 0.40
 
-        # 3. Izvod (1000)
         if tablica_lucced:
             tablica_lucced.append({"Konto": "1000", "Partner": "", "Naziv": "Izvod", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)})
 
@@ -154,5 +164,4 @@ if uploaded_file:
     except Exception as e:
         st.error(f"Greška: {e}")
 else:
-    # OVDJE JE BIJELI TEKST NA DNU
     st.info("💡 Ubacite PDF datoteku iznad kako biste započeli obradu.")

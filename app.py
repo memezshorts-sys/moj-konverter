@@ -8,7 +8,7 @@ import io
 # Podešavanje stranice
 st.set_page_config(page_title="RBA u XML Konverter", page_icon="🏦")
 
-st.title("🏦 RBA Izvadak u HUB3 XML")
+st.title("📄 PDF file u XML, HUB3 file")
 st.write("Učitajte PDF izvadak i preuzmite datoteku za Lucced bez ikakve instalacije.")
 
 def generate_xml(data):

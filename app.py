@@ -8,10 +8,9 @@ import io
 # 1. POSTAVKE STRANICE I DIZAJN
 st.set_page_config(page_title="Lucced PDF Konverter", page_icon="🏦", layout="centered")
 
-# CSS za hover animacije na polju za upload i gumbima
+# CSS za hover animacije
 st.markdown("""
     <style>
-    /* Animacija polja za upload */
     [data-testid="stFileUploader"] {
         transition: all 0.4s ease-in-out;
         border: 2px dashed #4e73df;
@@ -19,22 +18,16 @@ st.markdown("""
         padding: 10px;
     }
     [data-testid="stFileUploader"]:hover {
-        transform: scale(1.02);
+        transform: scale(1.01);
         border-color: #ff4b4b;
         box-shadow: 0px 10px 25px rgba(0,0,0,0.15);
-    }
-    /* Stil tablice */
-    .stTable {
-        background-color: #f8f9fc;
-        border-radius: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("📄 PDF file u XML, HUB3 file")
-st.write("Učitajte RBA izvadak za automatsko knjiženje u Lucced tablicu.")
 
-# 2. FUNKCIJA ZA GENERIRANJE XML-a (SVI PODACI)
+# 2. FUNKCIJA ZA GENERIRANJE XML-a
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")
@@ -48,29 +41,21 @@ def generate_lucced_xml(transactions):
     
     for tx in transactions:
         tx_inf = ET.SubElement(pmt_inf, "CdtTrfTxInf")
-        
-        # Iznos
         amt = ET.SubElement(tx_inf, "Amt")
-        ET.SubElement(amt, "InstdAmt", {"Ccy": "EUR"}).text = tx['Iznos']
+        ET.SubElement(amt, "InstdAmt", {"Ccy": "EUR"}).text = str(tx['Duguje'] if tx['Duguje'] != "0.00" else tx['Potražuje'])
         
-        # Primatelj
         cdtr = ET.SubElement(tx_inf, "Cdtr")
-        ET.SubElement(cdtr, "Nm").text = tx['Naziv_Partnera']
+        ET.SubElement(cdtr, "Nm").text = tx['Naziv']
         
-        # IBAN
-        cdtr_acct = ET.SubElement(tx_inf, "CdtrAcct")
-        ET.SubElement(ET.SubElement(cdtr_acct, "Id"), "IBAN").text = tx['IBAN']
-        
-        # Svrha i Konto (Mapiranje za Lucced)
         rmt = ET.SubElement(tx_inf, "RmtInf")
-        ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Opis']} | {tx['Poziv_na_broj']}"
+        ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
 
     output = io.BytesIO()
     tree = ET.ElementTree(root)
     tree.write(output, encoding="utf-8", xml_declaration=True)
     return output.getvalue()
 
-# 3. GLAVNA LOGIKA ZA OBRADU PDF-a
+# 3. GLAVNA LOGIKA
 uploaded_file = st.file_uploader("Odaberite RBA izvadak (PDF)", type="pdf")
 
 if uploaded_file:
@@ -79,65 +64,50 @@ if uploaded_file:
             full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
             lines = [l.strip() for l in full_text.split('\n') if l.strip()]
 
-        stavke_za_tablicu = []
+        tablica_lucced = []
+        ukupno_duguje = 0.0
         
-        # --- EKSTRAKCIJA GLAVNOG PLAĆANJA ---
+        # --- 1. REDAK: Partner (Konto 2221) ---
         amount_match = re.search(r'D\s+([\d\.]+,\d{2})', full_text)
         iban_match = re.search(r'HR\d{19}', full_text.replace(" ", ""))
         
         if amount_match and iban_match:
-            glavni_iznos = amount_match.group(1).replace('.', '').replace(',', '.')
-            if float(glavni_iznos) > 1.0:
-                clean_iban = iban_match.group(0)
-                naziv, opis = "Nepoznato", "Placanje po ugovoru"
-                
+            iznos = float(amount_match.group(1).replace('.', '').replace(',', '.'))
+            if iznos > 1.0:
+                naziv = "Nepoznato"
                 for i, line in enumerate(lines):
-                    if clean_iban in line.replace(" ", ""):
+                    if iban_match.group(0) in line.replace(" ", ""):
                         if i+1 < len(lines): naziv = lines[i+1].strip()
-                        if i+3 < len(lines): opis = lines[i+3].strip()
                         break
                 
-                stavke_za_tablicu.append({
-                    "Konto": "2221",
-                    "Naziv_Partnera": naziv,
-                    "Opis": opis,
-                    "IBAN": clean_iban,
-                    "Iznos": glavni_iznos,
-                    "Poziv_na_broj": "HR99"
-                })
+                tablica_lucced.append({"Konto": "2221", "Partner": "503", "Naziv": naziv, "Duguje": "{:.2f}".format(iznos), "Potražuje": "0.00"})
+                ukupno_duguje += iznos
 
-        # --- EKSTRAKCIJA NAKNADE (Onih 0,40 sa slike) ---
+        # --- 2. REDAK: Naknada (Konto 4650) ---
         if "Naknada" in full_text:
             fee_match = re.search(r'D\s+0,40', full_text)
             if fee_match:
-                stavke_za_tablicu.append({
-                    "Konto": "4650",
-                    "Naziv_Partnera": "RBA Banka",
-                    "Opis": "Naknada - EURO NKS",
-                    "IBAN": "HR0624840081000000013", # RBA IBAN za naknade
-                    "Iznos": "0.40",
-                    "Poziv_na_broj": "HR99"
-                })
+                tablica_lucced.append({"Konto": "4650", "Partner": "1", "Naziv": "Naknada - EURO NKS plaćanje", "Duguje": "0.40", "Potražuje": "0.00"})
+                ukupno_duguje += 0.40
 
-        # 4. PRIKAZ TABLICE I DOWNLOAD
-        if stavke_za_tablicu:
-            st.success("✅ Podaci isčitani prema Lucced strukturi:")
-            st.table(stavke_za_tablicu) # Prikaz tablice kao na tvojoj slici
+        # --- 3. REDAK: IZVOD (Konto 1000) ---
+        # Ovaj redak zatvara knjiženje i stavlja ukupni iznos na Potražuje
+        if tablica_lucced:
+            tablica_lucced.append({
+                "Konto": "1000", 
+                "Partner": "", 
+                "Naziv": "Izvod", 
+                "Duguje": "0.00", 
+                "Potražuje": "{:.2f}".format(ukupno_duguje)
+            })
+
+        # 4. PRIKAZ I DOWNLOAD
+        if tablica_lucced:
+            st.success("✅ Tablica spremna za Lucced:")
+            st.table(tablica_lucced) 
             
-            xml_data = generate_lucced_xml(stavke_za_tablicu)
-            
-            st.download_button(
-                label="⬇️ Preuzmi XML, HUB3 file",
-                data=xml_data,
-                file_name=uploaded_file.name.replace(".pdf", ".xml"),
-                mime="application/xml"
-            )
-        else:
-            st.warning("Nije pronađena niti jedna transakcija. Provjerite PDF.")
+            xml_data = generate_lucced_xml(tablica_lucced)
+            st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name="izvod_lucced.xml")
 
     except Exception as e:
-        st.error(f"Greška pri obradi datoteke: {e}")
-
-else:
-    st.info("💡 Savjet: Samo povucite PDF datoteku iznad za početak.")
-
+        st.error(f"Greška: {e}")

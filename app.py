@@ -5,82 +5,115 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. DIZAJN STRANICE
-st.set_page_config(page_title="Panda Lucced Fix", page_icon="🐼", layout="centered")
+# 1. DIZAJN STRANICE - UKLANJANJE BIJELOG LAYERA
+st.set_page_config(page_title="Panda HUB3 Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
-    html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
+    /* Pozadina cijele stranice */
+    .stApp {
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%);
+    }
+
+    /* VODENI ŽIG (Panda knjigovodstvo) */
+    .stApp::before {
+        content: 'Panda knjigovodstvo';
+        position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 5rem; font-weight: bold;
+        color: rgba(255, 255, 255, 0.03);
+        pointer-events: none; z-index: 0;
+    }
+
+    /* SVI TEKSTOVI BIJELI */
+    html, body, [class*="st-"], h1, h2, h3, p, span, label {
+        color: #ffffff !important;
+    }
+
+    /* POTPUNO UKLANJANJE BIJELOG SLOJA IZ PRAVOKUTNIKA */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.05) !important;
+        background-color: rgba(255, 255, 255, 0.02) !important; /* Gotovo 100% prozirno */
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
         padding: 50px 20px !important;
+        min-height: 250px !important;
+        transition: all 0.4s ease-in-out;
     }
+
+    /* Uklanjanje bijele pozadine s unutarnjeg dijela (gdje se dropa file) */
+    [data-testid="stFileUploader"] section {
+        background-color: transparent !important;
+        border: none !important;
+    }
+
+    /* Uklanjanje bijele boje s gumba 'Browse files' */
+    [data-testid="stFileUploader"] button {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+        border: 1px solid rgba(0, 210, 255, 0.5) !important;
+    }
+
+    /* HOVER ANIMACIJA - blago posvjetljivanje bez 'bijelog pranja' */
+    [data-testid="stFileUploader"]:hover {
+        transform: scale(1.01);
+        background-color: rgba(255, 255, 255, 0.07) !important;
+        border-color: #00ff88 !important;
+        box-shadow: 0px 0px 30px rgba(0, 210, 255, 0.2);
+    }
+
+    /* Stil gumba za download */
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
         color: white !important;
-        border-radius: 50px; font-weight: bold;
+        border: none;
+        border-radius: 50px;
+        font-weight: bold;
+        transition: 0.3s;
     }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📄 HUB3 Konverter za Lucced")
+st.title("📄 PDF file u XML, HUB3 file")
+st.write("### Panda Knjigovodstvo - Brza obrada")
 
+# 2. FUNKCIJA ZA HUB3 (PAIN.001.001.03)
 def generate_strict_hub3(transactions):
-    """Generira strogo definiran HUB3 nalog za hrvatske programe."""
-    # Namespace koji koriste HR banke i programi
     ns = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
     ET.register_namespace('', ns)
-    
     root = ET.Element("{%s}Document" % ns)
     initn = ET.SubElement(root, "{%s}CstmrCdtTrfInitn" % ns)
     
-    # 1. Group Header
     grphdr = ET.SubElement(initn, "{%s}GrpHdr" % ns)
     ET.SubElement(grphdr, "{%s}MsgId" % ns).text = f"ID-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     ET.SubElement(grphdr, "{%s}CreDtTm" % ns).text = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     ET.SubElement(grphdr, "{%s}NbOfTxs" % ns).text = str(len(transactions))
     
-    # Init Party (Tvoja firma/Panda)
-    initgpty = ET.SubElement(grphdr, "{%s}InitgPty" % ns)
-    ET.SubElement(initgpty, "{%s}Nm" % ns).text = "Panda Knjigovodstvo"
-
-    # 2. Payment Information
     pmt_inf = ET.SubElement(initn, "{%s}PmtInf" % ns)
     ET.SubElement(pmt_inf, "{%s}PmtInfId" % ns).text = "PIID-" + datetime.now().strftime('%Y%m%d')
     ET.SubElement(pmt_inf, "{%s}PmtMtd" % ns).text = "TRF"
-    
-    # Platitelj (Debtor) - Obavezno polje
-    dbtr = ET.SubElement(pmt_inf, "{%s}Dbtr" % ns)
-    ET.SubElement(dbtr, "{%s}Nm" % ns).text = "Vlasnik Racuna"
     
     for tx in transactions:
         tx_inf = ET.SubElement(pmt_inf, "{%s}CdtTrfTxInf" % ns)
         p_id = ET.SubElement(tx_inf, "{%s}PmtId" % ns)
         ET.SubElement(p_id, "{%s}EndToEndId" % ns).text = "HR99"
         
-        # Iznos
         amt = ET.SubElement(tx_inf, "{%s}Amt" % ns)
         ET.SubElement(amt, "{%s}InstdAmt" % ns, {"Ccy": "EUR"}).text = str(tx['Duguje'] if tx['Duguje'] != "0.00" else tx['Potražuje'])
         
-        # Primatelj (Creditor)
         cdtr = ET.SubElement(tx_inf, "{%s}Cdtr" % ns)
         ET.SubElement(cdtr, "{%s}Nm" % ns).text = tx['Naziv'][:70]
         
-        # Svrha (Ustrd) - Tu stavljamo informaciju o kontu
         rmt = ET.SubElement(tx_inf, "{%s}RmtInf" % ns)
         ET.SubElement(rmt, "{%s}Ustrd" % ns).text = f"{tx['Konto']} - {tx['Naziv']}"
 
     output = io.BytesIO()
-    # Dodajemo XML zaglavlje s UTF-8
     output.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
     tree = ET.ElementTree(root)
     tree.write(output, encoding="utf-8", xml_declaration=False)
     return output.getvalue()
 
-uploaded_file = st.file_uploader("Povucite PDF ovdje", type="pdf")
+# 3. GLAVNA LOGIKA
+uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 
 if uploaded_file:
     try:
@@ -91,7 +124,6 @@ if uploaded_file:
         tablica_lucced = []
         ukupno_duguje = 0.0
 
-        # Parser
         for i, line in enumerate(lines):
             iban_match = re.search(r'HR\d{19}', line.replace(" ", ""))
             if iban_match:
@@ -116,14 +148,15 @@ if uploaded_file:
             st.table(tablica_lucced)
             
             hub3_data = generate_strict_hub3(tablica_lucced)
-            
             st.download_button(
                 label="⬇️ Preuzmi HUB3 datoteku",
                 data=hub3_data,
-                file_name=f"nalog_{datetime.now().strftime('%H%M%S')}.hub3",
+                file_name=f"izvod_{datetime.now().strftime('%H%M%S')}.hub3",
                 mime="application/xml"
             )
             st.balloons()
             
     except Exception as e:
-        st.error(f"Došlo je do greške: {e}")
+        st.error(f"Greška: {e}")
+else:
+    st.info("💡 Ubacite PDF datoteku iznad kako biste započeli obradu.")

@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. POSTAVKE STRANICE I DIZAJN
+# 1. POSTAVKE STRANICE I MODERAN STAKLENI DIZAJN
 st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -15,7 +15,7 @@ st.markdown("""
         background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%);
     }
 
-    /* VODENI ŽIG (Panda knjigovodstvo u pozadini) */
+    /* VODENI ŽIG */
     .stApp::before {
         content: 'Panda knjigovodstvo';
         position: fixed;
@@ -30,35 +30,39 @@ st.markdown("""
         z-index: 0;
     }
 
-    /* SVEOPĆI BIJELI TEKST (Osim uploada) */
-    html, body, [class*="st-"] {
-        color: #ffffff !important;
-    }
-    h1, h2, h3, p, span, label {
+    /* SVEOPĆI BIJELI TEKST */
+    html, body, [class*="st-"], h1, h2, h3, p, span, label {
         color: #ffffff !important;
     }
 
-    /* CRNI TEKST UNUTAR UPLOAD POLJA (Za bolju vidljivost) */
-    [data-testid="stFileUploader"] section div {
-        color: #000000 !important;
-    }
-    [data-testid="stFileUploader"] small {
-        color: #333333 !important; /* Tamno siva za '200MB per file' */
-    }
-
-    /* Stil polja za upload */
+    /* POPRAVAK POLJA ZA UPLOAD - Uklanjanje bijelog sloja */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.8) !important; /* Svjetlija pozadina uploada */
-        border: 2px dashed #00d2ff;
-        border-radius: 20px;
-        padding: 20px;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        background-color: rgba(255, 255, 255, 0.05) !important; /* Skoro prozirno */
+        border: 2px dashed #00d2ff !important;
+        border-radius: 20px !important;
+        padding: 20px !important;
+        transition: all 0.4s ease-in-out;
     }
+
+    /* Osiguravamo da su slova UNUTAR pravokutnika bijela i vidljiva */
+    [data-testid="stFileUploader"] section {
+        background-color: transparent !important;
+    }
+    
+    [data-testid="stFileUploader"] section div div {
+        color: #ffffff !important;
+    }
+
+    [data-testid="stFileUploader"] small {
+        color: rgba(255, 255, 255, 0.6) !important; /* Svijetlo siva za detalje */
+    }
+
+    /* Efekt pri prelasku mišem */
     [data-testid="stFileUploader"]:hover {
         transform: scale(1.02);
-        border-color: #00ff88;
-        background-color: rgba(255, 255, 255, 0.95) !important;
-        box-shadow: 0px 15px 30px rgba(0,0,0,0.4);
+        border-color: #00ff88 !important;
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0px 10px 30px rgba(0, 210, 255, 0.2);
     }
 
     /* Gumb za download */
@@ -66,16 +70,9 @@ st.markdown("""
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
         color: white !important;
         border: none;
-        padding: 15px 30px;
         border-radius: 50px;
         font-weight: bold;
         transition: all 0.3s ease;
-        width: 100%;
-    }
-
-    @keyframes fadeInDown {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -83,7 +80,7 @@ st.markdown("""
 st.title("📄 PDF file u XML, HUB3 file")
 st.write("### Brza obrada RBA izvatka za Lucced")
 
-# 2. FUNKCIJA ZA XML
+# 2. FUNKCIJA ZA XML (Ista kao prije)
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")

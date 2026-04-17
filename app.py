@@ -5,17 +5,17 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. POSTAVKE STRANICE I MODERAN STAKLENI DIZAJN
+# 1. POSTAVKE STRANICE I DIZAJN BEZ BIJELIH SLOJEVA
 st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
-    /* Pozadina cijele stranice */
+    /* Pozadina */
     .stApp {
         background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%);
     }
 
-    /* VODENI ŽIG */
+    /* Vodeni žig */
     .stApp::before {
         content: 'Panda knjigovodstvo';
         position: fixed;
@@ -25,44 +25,45 @@ st.markdown("""
         font-size: 5rem;
         font-weight: bold;
         color: rgba(255, 255, 255, 0.03);
-        white-space: nowrap;
         pointer-events: none;
         z-index: 0;
     }
 
-    /* SVEOPĆI BIJELI TEKST */
+    /* Svi tekstovi bijeli */
     html, body, [class*="st-"], h1, h2, h3, p, span, label {
         color: #ffffff !important;
     }
 
-    /* POPRAVAK POLJA ZA UPLOAD - Uklanjanje bijelog sloja */
+    /* UKLANJANJE BIJELOG SLOJA S CIJELOG UPLOADERA */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.05) !important; /* Skoro prozirno */
+        background-color: rgba(255, 255, 255, 0.05) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
-        padding: 20px !important;
-        transition: all 0.4s ease-in-out;
     }
 
-    /* Osiguravamo da su slova UNUTAR pravokutnika bijela i vidljiva */
+    /* UKLANJANJE BIJELE POZADINE UNUTARNJEG GUMBA (Browse files) */
+    [data-testid="stFileUploader"] section button {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        transition: all 0.3s ease;
+    }
+
+    [data-testid="stFileUploader"] section button:hover {
+        background-color: rgba(0, 210, 255, 0.2) !important;
+        border-color: #00d2ff !important;
+    }
+
+    /* Osiguravamo da nema skrivenih bijelih slojeva */
     [data-testid="stFileUploader"] section {
         background-color: transparent !important;
     }
-    
-    [data-testid="stFileUploader"] section div div {
-        color: #ffffff !important;
-    }
 
-    [data-testid="stFileUploader"] small {
-        color: rgba(255, 255, 255, 0.6) !important; /* Svijetlo siva za detalje */
-    }
-
-    /* Efekt pri prelasku mišem */
+    /* Animacija pri prelasku mišem */
     [data-testid="stFileUploader"]:hover {
-        transform: scale(1.02);
+        transform: scale(1.01);
         border-color: #00ff88 !important;
-        background-color: rgba(255, 255, 255, 0.1) !important;
-        box-shadow: 0px 10px 30px rgba(0, 210, 255, 0.2);
+        background-color: rgba(255, 255, 255, 0.08) !important;
     }
 
     /* Gumb za download */
@@ -72,7 +73,6 @@ st.markdown("""
         border: none;
         border-radius: 50px;
         font-weight: bold;
-        transition: all 0.3s ease;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -80,7 +80,7 @@ st.markdown("""
 st.title("📄 PDF file u XML, HUB3 file")
 st.write("### Brza obrada RBA izvatka za Lucced")
 
-# 2. FUNKCIJA ZA XML (Ista kao prije)
+# 2. FUNKCIJA ZA XML (Nepromijenjena)
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")
@@ -89,7 +89,6 @@ def generate_lucced_xml(transactions):
     ET.SubElement(grphdr, "CreDtTm").text = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     ET.SubElement(grphdr, "NbOfTxs").text = str(len(transactions))
     pmt_inf = ET.SubElement(initn, "PmtInf")
-    
     for tx in transactions:
         tx_inf = ET.SubElement(pmt_inf, "CdtTrfTxInf")
         amt = ET.SubElement(tx_inf, "Amt")
@@ -98,7 +97,6 @@ def generate_lucced_xml(transactions):
         ET.SubElement(cdtr, "Nm").text = tx['Naziv']
         rmt = ET.SubElement(tx_inf, "RmtInf")
         ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
-
     output = io.BytesIO()
     tree = ET.ElementTree(root)
     tree.write(output, encoding="utf-8", xml_declaration=True)
@@ -112,13 +110,10 @@ if uploaded_file:
         with pdfplumber.open(uploaded_file) as pdf:
             full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
             lines = [l.strip() for l in full_text.split('\n') if l.strip()]
-
         tablica_lucced = []
         ukupno_duguje = 0.0
-        
         amount_match = re.search(r'D\s+([\d\.]+,\d{2})', full_text)
         iban_match = re.search(r'HR\d{19}', full_text.replace(" ", ""))
-        
         if amount_match and iban_match:
             iznos = float(amount_match.group(1).replace('.', '').replace(',', '.'))
             if iznos > 1.0:
@@ -129,23 +124,18 @@ if uploaded_file:
                         break
                 tablica_lucced.append({"Konto": "2221", "Partner": "503", "Naziv": naziv, "Duguje": "{:.2f}".format(iznos), "Potražuje": "0.00"})
                 ukupno_duguje += iznos
-
         if "Naknada" in full_text:
             fee_match = re.search(r'D\s+0,40', full_text)
             if fee_match:
                 tablica_lucced.append({"Konto": "4650", "Partner": "1", "Naziv": "Naknada - EURO NKS plaćanje", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno_duguje += 0.40
-
         if tablica_lucced:
             tablica_lucced.append({"Konto": "1000", "Partner": "", "Naziv": "Izvod", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)})
-
             st.markdown("### 📊 Generirana tablica za Lucced")
             st.table(tablica_lucced)
-            
             xml_data = generate_lucced_xml(tablica_lucced)
             st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name="izvod_lucced.xml")
             st.balloons()
-
     except Exception as e:
         st.error(f"Greška: {e}")
 else:

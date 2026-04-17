@@ -10,20 +10,29 @@ st.set_page_config(page_title="Lucced Konverter", page_icon="🏦", layout="cent
 
 st.markdown("""
     <style>
-    /* Pozadina cijele stranice s gradijentom */
+    /* Pozadina cijele stranice */
     .stApp {
         background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%);
-        color: #ffffff;
+    }
+
+    /* Postavljanje SVEGA teksta na bijelu boju */
+    html, body, [class*="st-"] {
+        color: #ffffff !important;
+    }
+
+    /* Posebno za naslove i podnaslove */
+    h1, h2, h3, p, span, label {
+        color: #ffffff !important;
     }
 
     /* Animacija naslova */
     h1 {
-        color: #00d2ff;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        color: #00d2ff !important; /* Naslov ostavljamo u svijetlo plavoj radi kontrasta */
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         animation: fadeInDown 1s ease-in-out;
     }
 
-    /* Stil i animacija polja za upload */
+    /* Stil polja za upload */
     [data-testid="stFileUploader"] {
         background-color: rgba(255, 255, 255, 0.05);
         border: 2px dashed #00d2ff;
@@ -32,24 +41,16 @@ st.markdown("""
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     [data-testid="stFileUploader"]:hover {
-        transform: scale(1.03);
+        transform: scale(1.02);
         border-color: #00ff88;
         background-color: rgba(255, 255, 255, 0.1);
         box-shadow: 0px 15px 30px rgba(0,0,0,0.4);
     }
 
-    /* Animirane kartice rezultata */
-    .stTable {
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        animation: fadeInUp 0.8s ease-out;
-    }
-
-    /* Gumb za download - poseban stil */
+    /* Gumb za download */
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
-        color: white;
+        color: white !important;
         border: none;
         padding: 15px 30px;
         border-radius: 50px;
@@ -60,17 +61,19 @@ st.markdown("""
     }
     .stDownloadButton button:hover {
         transform: translateY(-3px);
-        box-shadow: 0 6px 20px rgba(0, 210, 255, 0.5);
         background: linear-gradient(90deg, #3a7bd5 0%, #00d2ff 100%);
     }
 
-    /* Keyframes za animacije */
+    /* Info poruka na dnu - bijeli tekst */
+    .stAlert {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+        border-radius: 15px !important;
+    }
+
+    /* Animacije */
     @keyframes fadeInDown {
         from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
     }
     </style>
@@ -79,7 +82,7 @@ st.markdown("""
 st.title("📄 PDF file u XML, HUB3 file")
 st.write("### Brza obrada RBA izvatka za Lucced")
 
-# 2. FUNKCIJA ZA XML (Ista kao prije)
+# 2. FUNKCIJA ZA XML
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")
@@ -141,15 +144,15 @@ if uploaded_file:
         if tablica_lucced:
             tablica_lucced.append({"Konto": "1000", "Partner": "", "Naziv": "Izvod", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)})
 
-            # PRIKAZ REZULTATA
             st.markdown("### 📊 Generirana tablica za Lucced")
             st.table(tablica_lucced)
             
             xml_data = generate_lucced_xml(tablica_lucced)
             st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name="izvod_lucced.xml")
-            st.balloons() # Slavljenička animacija pri uspjehu
+            st.balloons()
 
     except Exception as e:
         st.error(f"Greška: {e}")
 else:
+    # OVDJE JE BIJELI TEKST NA DNU
     st.info("💡 Ubacite PDF datoteku iznad kako biste započeli obradu.")

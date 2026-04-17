@@ -5,48 +5,96 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. POSTAVKE STRANICE I DIZAJN
-st.set_page_config(page_title="Lucced PDF Konverter", page_icon="🏦", layout="centered")
+# 1. POSTAVKE STRANICE I NAPREDNI DIZAJN (CSS)
+st.set_page_config(page_title="Lucced Konverter", page_icon="🏦", layout="centered")
 
-# CSS za hover animacije
 st.markdown("""
     <style>
+    /* Pozadina cijele stranice s gradijentom */
+    .stApp {
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%);
+        color: #ffffff;
+    }
+
+    /* Animacija naslova */
+    h1 {
+        color: #00d2ff;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        animation: fadeInDown 1s ease-in-out;
+    }
+
+    /* Stil i animacija polja za upload */
     [data-testid="stFileUploader"] {
-        transition: all 0.4s ease-in-out;
-        border: 2px dashed #4e73df;
-        border-radius: 15px;
-        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 2px dashed #00d2ff;
+        border-radius: 20px;
+        padding: 20px;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     [data-testid="stFileUploader"]:hover {
-        transform: scale(1.01);
-        border-color: #ff4b4b;
-        box-shadow: 0px 10px 25px rgba(0,0,0,0.15);
+        transform: scale(1.03);
+        border-color: #00ff88;
+        background-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0px 15px 30px rgba(0,0,0,0.4);
+    }
+
+    /* Animirane kartice rezultata */
+    .stTable {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        animation: fadeInUp 0.8s ease-out;
+    }
+
+    /* Gumb za download - poseban stil */
+    .stDownloadButton button {
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 50px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+        width: 100%;
+        box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+    }
+    .stDownloadButton button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0, 210, 255, 0.5);
+        background: linear-gradient(90deg, #3a7bd5 0%, #00d2ff 100%);
+    }
+
+    /* Keyframes za animacije */
+    @keyframes fadeInDown {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("📄 PDF file u XML, HUB3 file")
+st.write("### Brza obrada RBA izvatka za Lucced")
 
-# 2. FUNKCIJA ZA GENERIRANJE XML-a
+# 2. FUNKCIJA ZA XML (Ista kao prije)
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")
-    
     grphdr = ET.SubElement(initn, "GrpHdr")
     ET.SubElement(grphdr, "MsgId").text = f"LUCCED-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     ET.SubElement(grphdr, "CreDtTm").text = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     ET.SubElement(grphdr, "NbOfTxs").text = str(len(transactions))
-    
     pmt_inf = ET.SubElement(initn, "PmtInf")
     
     for tx in transactions:
         tx_inf = ET.SubElement(pmt_inf, "CdtTrfTxInf")
         amt = ET.SubElement(tx_inf, "Amt")
         ET.SubElement(amt, "InstdAmt", {"Ccy": "EUR"}).text = str(tx['Duguje'] if tx['Duguje'] != "0.00" else tx['Potražuje'])
-        
         cdtr = ET.SubElement(tx_inf, "Cdtr")
         ET.SubElement(cdtr, "Nm").text = tx['Naziv']
-        
         rmt = ET.SubElement(tx_inf, "RmtInf")
         ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
 
@@ -55,8 +103,8 @@ def generate_lucced_xml(transactions):
     tree.write(output, encoding="utf-8", xml_declaration=True)
     return output.getvalue()
 
-# 3. GLAVNA LOGIKA
-uploaded_file = st.file_uploader("Odaberite RBA izvadak (PDF)", type="pdf")
+# 3. OBRADA DATOTEKE
+uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 
 if uploaded_file:
     try:
@@ -67,7 +115,7 @@ if uploaded_file:
         tablica_lucced = []
         ukupno_duguje = 0.0
         
-        # --- 1. REDAK: Partner (Konto 2221) ---
+        # 1. Partner (2221)
         amount_match = re.search(r'D\s+([\d\.]+,\d{2})', full_text)
         iban_match = re.search(r'HR\d{19}', full_text.replace(" ", ""))
         
@@ -79,35 +127,29 @@ if uploaded_file:
                     if iban_match.group(0) in line.replace(" ", ""):
                         if i+1 < len(lines): naziv = lines[i+1].strip()
                         break
-                
                 tablica_lucced.append({"Konto": "2221", "Partner": "503", "Naziv": naziv, "Duguje": "{:.2f}".format(iznos), "Potražuje": "0.00"})
                 ukupno_duguje += iznos
 
-        # --- 2. REDAK: Naknada (Konto 4650) ---
+        # 2. Naknada (4650)
         if "Naknada" in full_text:
             fee_match = re.search(r'D\s+0,40', full_text)
             if fee_match:
                 tablica_lucced.append({"Konto": "4650", "Partner": "1", "Naziv": "Naknada - EURO NKS plaćanje", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno_duguje += 0.40
 
-        # --- 3. REDAK: IZVOD (Konto 1000) ---
-        # Ovaj redak zatvara knjiženje i stavlja ukupni iznos na Potražuje
+        # 3. Izvod (1000)
         if tablica_lucced:
-            tablica_lucced.append({
-                "Konto": "1000", 
-                "Partner": "", 
-                "Naziv": "Izvod", 
-                "Duguje": "0.00", 
-                "Potražuje": "{:.2f}".format(ukupno_duguje)
-            })
+            tablica_lucced.append({"Konto": "1000", "Partner": "", "Naziv": "Izvod", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)})
 
-        # 4. PRIKAZ I DOWNLOAD
-        if tablica_lucced:
-            st.success("✅ Tablica spremna za Lucced:")
-            st.table(tablica_lucced) 
+            # PRIKAZ REZULTATA
+            st.markdown("### 📊 Generirana tablica za Lucced")
+            st.table(tablica_lucced)
             
             xml_data = generate_lucced_xml(tablica_lucced)
             st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name="izvod_lucced.xml")
+            st.balloons() # Slavljenička animacija pri uspjehu
 
     except Exception as e:
         st.error(f"Greška: {e}")
+else:
+    st.info("💡 Ubacite PDF datoteku iznad kako biste započeli obradu.")

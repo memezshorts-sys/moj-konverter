@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. DIZAJN I POSTAVKE
+# 1. DIZAJN STRANICE
 st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -20,14 +20,12 @@ st.markdown("""
         pointer-events: none; z-index: 0;
     }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
-    
     [data-testid="stFileUploader"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
         padding: 50px 20px !important;
         min-height: 250px !important;
-        transition: all 0.4s ease-in-out;
     }
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
@@ -38,7 +36,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("📄 PDF file u XML, HUB3 file")
-st.write("### Univerzalna obrada bankovnih izvoda")
+st.write("### HPB & RBA Automatska Obrada")
 
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
@@ -47,6 +45,7 @@ def generate_lucced_xml(transactions):
     ET.SubElement(grphdr, "MsgId").text = f"LUCCED-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     ET.SubElement(grphdr, "NbOfTxs").text = str(len(transactions))
     pmt_inf = ET.SubElement(initn, "PmtInf")
+    
     for tx in transactions:
         tx_inf = ET.SubElement(pmt_inf, "CdtTrfTxInf")
         amt = ET.SubElement(tx_inf, "Amt")
@@ -54,89 +53,79 @@ def generate_lucced_xml(transactions):
         cdtr = ET.SubElement(tx_inf, "Cdtr")
         ET.SubElement(cdtr, "Nm").text = tx['Naziv']
         rmt = ET.SubElement(tx_inf, "RmtInf")
+        # Lucced mapiranje
         ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
+
     output = io.BytesIO()
     tree = ET.ElementTree(root)
     tree.write(output, encoding="utf-8", xml_declaration=True)
     return output.getvalue()
 
-# --- UNIVERZALNI PARSER ---
-def parse_any_pdf(full_text):
-    lines = [l.strip() for l in full_text.split('\n') if l.strip()]
-    data = {"iban": "", "amount": 0.0, "recipient": "Nepoznato", "banka": "Nepoznato"}
-    
-    # Detekcija banke
-    if "RAIFFEISEN" in full_text.upper(): data["banka"] = "RBA"
-    elif "HRVATSKA POŠTANSKA BANKA" in full_text.upper() or "HPB" in full_text.upper(): data["banka"] = "HPB"
-
-    # 1. Traženje IBAN-a (Univerzalno)
-    iban_match = re.search(r'HR\d{19}', full_text.replace(" ", ""))
-    if iban_match:
-        data["iban"] = iban_match.group(0)
-        # Traženje imena oko IBAN-a
-        for i, line in enumerate(lines):
-            if data["iban"] in line.replace(" ", ""):
-                # Kod RBA je ime ispod, kod HPB je često iznad ili pored
-                if data["banka"] == "RBA" and i + 1 < len(lines):
-                    data["recipient"] = lines[i+1]
-                else:
-                    data["recipient"] = lines[i-1] if i > 0 else "Partner"
-                break
-
-    # 2. Traženje IZNOSA
-    # Tražimo format 'D 100,00' ili samo '100,00' uz uvjet da je veći od 1.0
-    amounts = re.findall(r'(?:D\s+)?(\d+[\d\.]*,\d{2})', full_text)
-    for am in amounts:
-        val = float(am.replace('.', '').replace(',', '.'))
-        if val > 1.0: # Preskačemo naknade u ovom koraku
-            data["amount"] = val
-            break
-            
-    return data
-
-uploaded_file = st.file_uploader("Povucite bilo koji PDF izvadak ovdje", type="pdf")
+uploaded_file = st.file_uploader("Povucite HPB PDF izvadak ovdje", type="pdf")
 
 if uploaded_file:
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+            full_text = ""
+            for page in pdf.pages:
+                full_text += page.extract_text() + "\n"
         
-        parsed = parse_any_pdf(full_text)
+        lines = [l.strip() for l in full_text.split('\n') if l.strip()]
         tablica_lucced = []
         ukupno_duguje = 0.0
 
-        if parsed["iban"] and parsed["amount"] > 0:
-            # 1. Partner
-            tablica_lucced.append({
-                "Konto": "2221", "Partner": "503", "Naziv": parsed["recipient"],
-                "Duguje": "{:.2f}".format(parsed["amount"]), "Potražuje": "0.00"
-            })
-            ukupno_duguje += parsed["amount"]
+        # --- PAMETNO PREPOZNAVANJE STAVKI (HPB SPECIFIČNO) ---
+        # Tražimo uzorak IBAN-a i iznosa u blizini
+        for i, line in enumerate(lines):
+            # 1. Pronađi IBAN primatelja
+            iban_match = re.search(r'HR\d{19}', line.replace(" ", ""))
+            if iban_match:
+                clean_iban = iban_match.group(0)
+                
+                # 2. Potraži iznos u istom ili sljedećih par redova (HPB format)
+                # Tražimo broj s dva decimalna mjesta koji je u koloni "Duguje/Isplata"
+                found_amount = 0.0
+                for offset in range(-1, 4): # Gledamo red iznad i par redova ispod
+                    if i + offset < len(lines):
+                        # Regex za iznos (npr. 20,40 ili 1.234,56)
+                        amt_match = re.findall(r'(\d+[\d\.]*,\d{2})', lines[i+offset])
+                        for a in amt_match:
+                            val = float(a.replace('.', '').replace(',', '.'))
+                            # Filtriramo datume i rezervacije (HPB iznosi su obično desno)
+                            if val > 1.0: 
+                                found_amount = val
+                                break
+                
+                # 3. Pronađi naziv (u HPB izvatku je često desno od IBAN-a)
+                naziv = line.split(clean_iban)[-1].strip() if clean_iban in line.replace(" ","") else "Partner"
+                if not naziv or len(naziv) < 3:
+                    if i + 1 < len(lines): naziv = lines[i+1].split()[0] # Uzmi prvu riječ iz reda ispod
 
-            # 2. Naknada (Automatski detektira 0,40 ako postoji)
-            if "0,40" in full_text:
-                tablica_lucced.append({
-                    "Konto": "4650", "Partner": "1", "Naziv": "Naknada banke",
-                    "Duguje": "0.40", "Potražuje": "0.00"
-                })
-                ukupno_duguje += 0.40
+                if found_amount > 0:
+                    tablica_lucced.append({
+                        "Konto": "2221", "Partner": "503", "Naziv": naziv[:30], 
+                        "Duguje": "{:.2f}".format(found_amount), "Potražuje": "0.00"
+                    })
+                    ukupno_duguje += found_amount
 
-            # 3. Izvod
+        # 4. DODAVANJE IZVODA (Konto 1000)
+        if tablica_lucced:
+            # Dodajemo redak "Izvod" koji zbraja sve transakcije
             tablica_lucced.append({
-                "Konto": "1000", "Partner": "", "Naziv": f"Izvod - {parsed['banka']}",
+                "Konto": "1000", "Partner": "", "Naziv": "Izvod", 
                 "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)
             })
 
-            st.markdown(f"### 📊 Detektirana banka: {parsed['banka']}")
+            st.success(f"✅ Uspješno isčitano {len(tablica_lucced)-1} transakcija.")
             st.table(tablica_lucced)
             
             xml_data = generate_lucced_xml(tablica_lucced)
-            st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name=f"izvod_{parsed['banka']}.xml")
+            st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name="hpb_izvod_lucced.xml")
             st.balloons()
         else:
-            st.warning("Nisam uspio isčitati ključne podatke (IBAN ili Iznos). Provjerite PDF.")
+            st.warning("Nije pronađena nijedna transakcija. Provjerite je li PDF tekstualni.")
 
     except Exception as e:
-        st.error(f"Greška pri obradi: {e}")
+        st.error(f"Došlo je do greške: {e}")
 else:
-    st.info("💡 Sustav automatski prepoznaje banku i strukturira podatke za Lucced.")
+    st.info("💡 Savjet: Ovaj sustav sada prepoznaje više transakcija odjednom iz HPB izvatka.")

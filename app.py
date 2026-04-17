@@ -10,7 +10,10 @@ st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", l
 
 st.markdown("""
     <style>
+    /* Pozadina cijele stranice */
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
+    
+    /* Vodeni žig */
     .stApp::before {
         content: 'Panda knjigovodstvo';
         position: fixed; top: 50%; left: 50%;
@@ -19,19 +22,50 @@ st.markdown("""
         color: rgba(255, 255, 255, 0.03);
         pointer-events: none; z-index: 0;
     }
+
+    /* Svi tekstovi bijeli */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
+
+    /* Prozirni Upload pravokutnik (BEZ BIJELOG LAYERA) */
     [data-testid="stFileUploader"] {
         background-color: rgba(255, 255, 255, 0.02) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
         padding: 60px 20px !important;
         min-height: 280px !important;
+        transition: all 0.4s ease-in-out;
     }
     [data-testid="stFileUploader"] section { background-color: transparent !important; }
+
+    /* POPRAVAK: UKLANJANJE BIJELE POZADINE KVADRA NAKON UPLOADA */
+    [data-testid="stFileUploaderFileData"] {
+        background-color: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 10px !important;
+    }
+
+    /* Ime filea - bijelo i uočljivo */
+    [data-testid="stFileUploaderFileName"] {
+        color: #ffffff !important;
+        font-weight: bold !important;
+    }
+
+    /* X gumb za micanje - crven i vidljiv */
+    [data-testid="stFileUploaderDeleteBtn"] {
+        color: #ff4b4b !important;
+    }
+    [data-testid="stFileUploaderDeleteBtn"]:hover {
+        color: #ff0000 !important;
+        transform: scale(1.2);
+    }
+
+    /* Stil gumba za download */
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
         color: white !important;
-        border-radius: 50px; font-weight: bold;
+        border: none; border-radius: 50px;
+        padding: 15px 35px; font-weight: bold;
+        width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -47,12 +81,9 @@ def extract_all_transactions(pdf_file):
         for page in pdf.pages:
             text += page.extract_text() + "\n"
     
-    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    lines =
     
-    # Tražimo sve IBAN-ove i iznose u blizini (RegEx)
-    # Pronalazi HR + 19 znamenki
     iban_pattern = re.compile(r'HR\d{19}')
-    # Pronalazi iznose u formatu 1.234,56 ili 123,45
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
 
     detected_transactions = []
@@ -66,20 +97,15 @@ def extract_all_transactions(pdf_file):
             amount = 0.0
             naziv = "Nepoznati Partner"
             
-            # Gledamo okolne redove (-2 do +3) za iznos i naziv
             for offset in range(-2, 4):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
-                    
-                    # Tražimo iznos
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
-                        # Filtriramo naknade (često su 0,40 ili slično) i uzimamo prvi veći iznos
                         if val > 1.0 and amount == 0.0:
                             amount = val
                     
-                    # Tražimo naziv (ako linija ne sadrži IBAN ili brojeve, vjerojatno je ime)
                     if naziv == "Nepoznati Partner" and len(search_line) > 3:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
                             naziv = search_line
@@ -137,16 +163,13 @@ if uploaded_file:
         
         if data:
             ukupno = sum(float(tx["Duguje"]) for tx in data)
-            
-            # Detekcija naknade (ako postoji 0,40 ili slično u tekstu)
             if "0,40" in raw_text:
                 data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            # Zadnji redak: Izvod (Konto 1000)
             data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
-            st.success(f"Analiza završena! Pronađeno transakcija: {len(data)-2}")
+            st.success(f"Analiza završena za datoteku: {uploaded_file.name}")
             st.table(data)
             
             hub3_data = generate_hub3(data)
@@ -157,7 +180,7 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
         else:
-            st.warning("Nije pronađena nijedna transakcija. Provjerite je li PDF digitalno generiran (ne skeniran).")
+            st.warning("Nije pronađena transakcija na dokumentu.")
             
     except Exception as e:
         st.error(f"Greška pri obradi: {e}")

@@ -45,13 +45,11 @@ st.markdown("""
     }
 
     /* POPRAVAK VIDLJIVOSTI NAKON UPLOADA */
-    /* Ime filea - bijelo i uočljivo */
     [data-testid="stFileUploaderFileName"] {
         color: #ffffff !important;
         font-weight: bold !important;
     }
 
-    /* X gumb za micanje - crven i vidljiv */
     [data-testid="stFileUploaderDeleteBtn"] {
         color: #ff4b4b !important;
     }
@@ -60,7 +58,6 @@ st.markdown("""
         transform: scale(1.2);
     }
 
-    /* Hover efekt na pravokutnik */
     [data-testid="stFileUploader"]:hover {
         transform: scale(1.01);
         border-color: #00ff88 !important;
@@ -138,7 +135,7 @@ def parse_pdf(file):
             
             for off in range(-1, 4):
                 if 0 <= i + off < len(lines):
-                    search_line = lines[i+off]
+                    search_line = lines[i+offset] if 'offset' in locals() else lines[i+off]
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         v = float(am.replace('.', '').replace(',', '.'))
@@ -177,6 +174,6 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
         else:
-            st.warning("Nije pronađena niti jedna transakcija na ovom dokumentu.")
+            st.warning("Nije pronađena transakcija na dokumentu.")
     except Exception as e:
-        st.error(f"Greška pri obradi: {e}")
+        st.error(f"Greška: {e}")

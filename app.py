@@ -4,8 +4,9 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
+import zipfile  # Modul za izradu ZIP arhive
 
-# 1. DIZAJN STRANICE
+# 1. DIZAJN STRANICE (Zadržavamo tvoj Panda stil)
 st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -35,8 +36,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📄 PDF file u XML, HUB3 file")
-st.write("### HPB & RBA Automatska Obrada")
+st.title("📄 PDF file u ZIP (XML, HUB3)")
+st.write("### Sigurno preuzimanje bez automatskog otvaranja u Edgeu")
 
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
@@ -53,7 +54,6 @@ def generate_lucced_xml(transactions):
         cdtr = ET.SubElement(tx_inf, "Cdtr")
         ET.SubElement(cdtr, "Nm").text = tx['Naziv']
         rmt = ET.SubElement(tx_inf, "RmtInf")
-        # Lucced mapiranje
         ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
 
     output = io.BytesIO()
@@ -61,46 +61,33 @@ def generate_lucced_xml(transactions):
     tree.write(output, encoding="utf-8", xml_declaration=True)
     return output.getvalue()
 
-uploaded_file = st.file_uploader("Povucite HPB PDF izvadak ovdje", type="pdf")
+uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 
 if uploaded_file:
     try:
         with pdfplumber.open(uploaded_file) as pdf:
-            full_text = ""
-            for page in pdf.pages:
-                full_text += page.extract_text() + "\n"
+            full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
         
         lines = [l.strip() for l in full_text.split('\n') if l.strip()]
         tablica_lucced = []
         ukupno_duguje = 0.0
 
-        # --- PAMETNO PREPOZNAVANJE STAVKI (HPB SPECIFIČNO) ---
-        # Tražimo uzorak IBAN-a i iznosa u blizini
+        # Logika prepoznavanja (HPB/RBA)
         for i, line in enumerate(lines):
-            # 1. Pronađi IBAN primatelja
             iban_match = re.search(r'HR\d{19}', line.replace(" ", ""))
             if iban_match:
                 clean_iban = iban_match.group(0)
-                
-                # 2. Potraži iznos u istom ili sljedećih par redova (HPB format)
-                # Tražimo broj s dva decimalna mjesta koji je u koloni "Duguje/Isplata"
                 found_amount = 0.0
-                for offset in range(-1, 4): # Gledamo red iznad i par redova ispod
+                for offset in range(-1, 4):
                     if i + offset < len(lines):
-                        # Regex za iznos (npr. 20,40 ili 1.234,56)
                         amt_match = re.findall(r'(\d+[\d\.]*,\d{2})', lines[i+offset])
                         for a in amt_match:
                             val = float(a.replace('.', '').replace(',', '.'))
-                            # Filtriramo datume i rezervacije (HPB iznosi su obično desno)
                             if val > 1.0: 
                                 found_amount = val
                                 break
                 
-                # 3. Pronađi naziv (u HPB izvatku je često desno od IBAN-a)
                 naziv = line.split(clean_iban)[-1].strip() if clean_iban in line.replace(" ","") else "Partner"
-                if not naziv or len(naziv) < 3:
-                    if i + 1 < len(lines): naziv = lines[i+1].split()[0] # Uzmi prvu riječ iz reda ispod
-
                 if found_amount > 0:
                     tablica_lucced.append({
                         "Konto": "2221", "Partner": "503", "Naziv": naziv[:30], 
@@ -108,24 +95,28 @@ if uploaded_file:
                     })
                     ukupno_duguje += found_amount
 
-        # 4. DODAVANJE IZVODA (Konto 1000)
         if tablica_lucced:
-            # Dodajemo redak "Izvod" koji zbraja sve transakcije
-            tablica_lucced.append({
-                "Konto": "1000", "Partner": "", "Naziv": "Izvod", 
-                "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)
-            })
-
-            st.success(f"✅ Uspješno isčitano {len(tablica_lucced)-1} transakcija.")
+            tablica_lucced.append({"Konto": "1000", "Partner": "", "Naziv": "Izvod", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno_duguje)})
+            
+            st.success("✅ Podaci isčitani!")
             st.table(tablica_lucced)
             
-            xml_data = generate_lucced_xml(tablica_lucced)
-            st.download_button(label="⬇️ Preuzmi XML, HUB3 file", data=xml_data, file_name="hpb_izvod_lucced.xml")
+            # --- STVARANJE ZIP ARHIVE ---
+            xml_bytes = generate_lucced_xml(tablica_lucced)
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                # Upisujemo XML u ZIP (naziv datoteke unutar ZIP-a)
+                zf.writestr("nalog_za_lucced.xml", xml_bytes)
+            
+            # Gumb za preuzimanje ZIP datoteke
+            st.download_button(
+                label="⬇️ Preuzmi ZIP arhivu (XML unutra)",
+                data=zip_buffer.getvalue(),
+                file_name=f"izvod_{datetime.now().strftime('%Y%m%d')}.zip",
+                mime="application/zip"
+            )
             st.balloons()
-        else:
-            st.warning("Nije pronađena nijedna transakcija. Provjerite je li PDF tekstualni.")
 
     except Exception as e:
-        st.error(f"Došlo je do greške: {e}")
-else:
-    st.info("💡 Savjet: Ovaj sustav sada prepoznaje više transakcija odjednom iz HPB izvatka.")
+        st.error(f"Greška: {e}")

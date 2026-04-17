@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. POSTAVKE STRANICE I DIZAJN S VEĆIM OKVIROM
+# 1. POSTAVKE STRANICE I DIZAJN BEZ BIJELIH SLOJEVA
 st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -34,38 +34,43 @@ st.markdown("""
         color: #ffffff !important;
     }
 
-    /* POVEĆAN I PROZIRAN OKVIR ZA UPLOAD */
+    /* UKLANJANJE BIJELOG SLOJA S CIJELOG UPLOADERA */
     [data-testid="stFileUploader"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
-        padding: 50px 20px !important; /* Povećan padding (gore/dolje) za veću površinu */
-        min-height: 250px !important; /* Fiksna minimalna visina da bude prostranije */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.4s ease-in-out;
     }
 
-    /* Unutarnji gumb (Browse) */
+    /* UKLANJANJE BIJELE POZADINE UNUTARNJEG GUMBA (Browse files) */
     [data-testid="stFileUploader"] section button {
         background-color: rgba(255, 255, 255, 0.1) !important;
         color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        padding: 10px 25px !important;
+        transition: all 0.3s ease;
     }
 
-    /* Hover efekt */
+    [data-testid="stFileUploader"] section button:hover {
+        background-color: rgba(0, 210, 255, 0.2) !important;
+        border-color: #00d2ff !important;
+    }
+
+    /* Osiguravamo da nema skrivenih bijelih slojeva */
+    [data-testid="stFileUploader"] section {
+        background-color: transparent !important;
+    }
+
+    /* Animacija pri prelasku mišem */
     [data-testid="stFileUploader"]:hover {
         transform: scale(1.01);
         border-color: #00ff88 !important;
         background-color: rgba(255, 255, 255, 0.08) !important;
     }
 
-    /* Stil gumba za download */
+    /* Gumb za download */
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
         color: white !important;
+        border: none;
         border-radius: 50px;
         font-weight: bold;
     }
@@ -75,7 +80,7 @@ st.markdown("""
 st.title("📄 PDF file u XML, HUB3 file")
 st.write("### Brza obrada RBA izvatka za Lucced")
 
-# 2. FUNKCIJA ZA XML
+# 2. FUNKCIJA ZA XML (Nepromijenjena)
 def generate_lucced_xml(transactions):
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")

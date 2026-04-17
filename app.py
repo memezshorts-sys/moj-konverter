@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. DIZAJN STRANICE - UKLANJANJE BIJELOG LAYERA
+# 1. DIZAJN STRANICE - BEZ BIJELOG LAYERA I S ANIMACIJAMA
 st.set_page_config(page_title="Panda HUB3 Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -32,7 +32,7 @@ st.markdown("""
 
     /* POTPUNO UKLANJANJE BIJELOG SLOJA IZ PRAVOKUTNIKA */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.02) !important; /* Gotovo 100% prozirno */
+        background-color: rgba(255, 255, 255, 0.02) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
         padding: 50px 20px !important;
@@ -40,20 +40,19 @@ st.markdown("""
         transition: all 0.4s ease-in-out;
     }
 
-    /* Uklanjanje bijele pozadine s unutarnjeg dijela (gdje se dropa file) */
     [data-testid="stFileUploader"] section {
         background-color: transparent !important;
         border: none !important;
     }
 
-    /* Uklanjanje bijele boje s gumba 'Browse files' */
+    /* Gumb 'Browse files' */
     [data-testid="stFileUploader"] button {
         background-color: rgba(255, 255, 255, 0.1) !important;
         color: white !important;
         border: 1px solid rgba(0, 210, 255, 0.5) !important;
     }
 
-    /* HOVER ANIMACIJA - blago posvjetljivanje bez 'bijelog pranja' */
+    /* HOVER ANIMACIJA */
     [data-testid="stFileUploader"]:hover {
         transform: scale(1.01);
         background-color: rgba(255, 255, 255, 0.07) !important;
@@ -154,7 +153,7 @@ if uploaded_file:
                 file_name=f"izvod_{datetime.now().strftime('%H%M%S')}.hub3",
                 mime="application/xml"
             )
-            st.balloons()
+            # st.balloons() je uklonjen
             
     except Exception as e:
         st.error(f"Greška: {e}")

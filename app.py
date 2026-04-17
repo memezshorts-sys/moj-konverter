@@ -6,7 +6,7 @@ from datetime import datetime
 import io
 
 # --- 1. DIZAJN I STILIZACIJA (Panda stil) ---
-st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", layout="centered")
+st.set_page_config(page_title="Panda Lucced Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
@@ -49,7 +49,6 @@ st.markdown("""
     [data-testid="stFileUploaderFileName"] {
         color: #ffffff !important;
         font-weight: bold !important;
-        font-size: 1.1rem !important;
     }
 
     /* X gumb za micanje - crven i vidljiv */
@@ -82,7 +81,7 @@ st.markdown("""
 st.title("📄 PDF file u XML, HUB3 file")
 st.write("### Univerzalna obrada za Panda knjigovodstvo")
 
-# --- 2. GENERIRANJE STROGOG HUB3 XML-a ---
+# --- 2. GENERIRANJE HUB3 XML-a ---
 def generate_lucced_hub3(transactions):
     ns = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
     ET.register_namespace('', ns)
@@ -116,7 +115,7 @@ def generate_lucced_hub3(transactions):
     tree.write(output, encoding="utf-8", xml_declaration=False)
     return output.getvalue()
 
-# --- 3. UNIVERZALNA EKSTRAKCIJA ---
+# --- 3. UNIVERZALNA EKSTRAKCIJA IZ PDF-a ---
 def parse_pdf(file):
     with pdfplumber.open(file) as pdf:
         text = "\n".join([page.extract_text() or "" for page in pdf.pages])
@@ -125,7 +124,6 @@ def parse_pdf(file):
     tablica = []
     ukupno = 0.0
     
-    # Pronalazi IBAN i iznose
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d+[\d\.]*,\d{2})')
 
@@ -138,7 +136,6 @@ def parse_pdf(file):
             amount = 0.0
             naziv = "Partner"
             
-            # Gledamo okolne redove za iznos i naziv
             for off in range(-1, 4):
                 if 0 <= i + off < len(lines):
                     search_line = lines[i+off]
@@ -180,6 +177,6 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
         else:
-            st.warning("Nije pronađena niti jedna transakcija.")
+            st.warning("Nije pronađena niti jedna transakcija na ovom dokumentu.")
     except Exception as e:
-        st.error(f"Greška: {e}")
+        st.error(f"Greška pri obradi: {e}")

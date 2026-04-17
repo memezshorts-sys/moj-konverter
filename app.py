@@ -4,20 +4,28 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
-import zipfile
 
-# 1. DIZAJN STRANICE
-st.set_page_config(page_title="Panda Lucced Konverter", page_icon="🐼", layout="centered")
+# 1. DIZAJN STRANICE (Panda stil)
+st.set_page_config(page_title="Panda HUB3 Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
+    .stApp::before {
+        content: 'Panda knjigovodstvo';
+        position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 5rem; font-weight: bold;
+        color: rgba(255, 255, 255, 0.03);
+        pointer-events: none; z-index: 0;
+    }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     [data-testid="stFileUploader"] {
         background-color: rgba(255, 255, 255, 0.05) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
         padding: 50px 20px !important;
+        min-height: 250px !important;
     }
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
@@ -27,11 +35,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📄 PDF u HUB3 file (Lucced)")
+st.title("📄 PDF u HUB3 file")
 
-def generate_hub3_content(transactions):
-    """Generira sadržaj optimiziran za Lucced uvoz."""
-    # Stvaramo bazu za HUB3 XML (pain.001.001.03)
+def generate_hub3_file(transactions):
+    """Generira čisti HUB3 (XML) sadržaj optimiziran za Lucced."""
     root = ET.Element("Document", {"xmlns": "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"})
     initn = ET.SubElement(root, "CstmrCdtTrfInitn")
     
@@ -50,20 +57,19 @@ def generate_hub3_content(transactions):
         ET.SubElement(p_id, "EndToEndId").text = "HR99"
         
         amt = ET.SubElement(tx_inf, "Amt")
-        # Lucced treba točan format broja (npr. 100.40)
         ET.SubElement(amt, "InstdAmt", {"Ccy": "EUR"}).text = str(tx['Duguje'] if tx['Duguje'] != "0.00" else tx['Potražuje'])
         
         cdtr = ET.SubElement(tx_inf, "Cdtr")
-        ET.SubElement(cdtr, "Nm").text = tx['Naziv'][:70] # Ograničenje duljine naziva
+        ET.SubElement(cdtr, "Nm").text = tx['Naziv'][:70]
         
         rmt = ET.SubElement(tx_inf, "RmtInf")
-        # Lucced čita KONTO iz polja svrhe ako je tako podešen
         ET.SubElement(rmt, "Ustrd").text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
 
     output = io.BytesIO()
     tree = ET.ElementTree(root)
-    # Dodajemo XML deklaraciju koju programi zahtijevaju
-    tree.write(output, encoding="utf-8", xml_declaration=True)
+    # Generiramo XML s punom deklaracijom
+    output.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
+    tree.write(output, encoding="utf-8", xml_declaration=False)
     return output.getvalue()
 
 uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
@@ -77,7 +83,7 @@ if uploaded_file:
         tablica_lucced = []
         ukupno_duguje = 0.0
 
-        # Univerzalni parser (HPB/RBA)
+        # Univerzalni parser
         for i, line in enumerate(lines):
             iban_match = re.search(r'HR\d{19}', line.replace(" ", ""))
             if iban_match:
@@ -102,19 +108,17 @@ if uploaded_file:
             
             st.table(tablica_lucced)
             
-            # --- ZIP PAKIRANJE ---
-            hub3_bytes = generate_hub3_content(tablica_lucced)
-            zip_buffer = io.BytesIO()
+            # Generiranje sadržaja datoteke
+            hub3_content = generate_hub3_file(tablica_lucced)
             
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                # Ključno: Datoteka unutar ZIP-a se zove .hub3
-                zf.writestr(f"izvod_{datetime.now().strftime('%H%M%S')}.hub3", hub3_bytes)
-            
+            # Gumb za direktno preuzimanje .hub3 datoteke
             st.download_button(
-                label="⬇️ Preuzmi HUB3 ZIP arhivu",
-                data=zip_buffer.getvalue(),
-                file_name=f"lucced_export.zip",
-                mime="application/zip"
+                label="⬇️ Preuzmi .hub3 datoteku",
+                data=hub3_content,
+                file_name=f"izvod_{datetime.now().strftime('%H%M%S')}.hub3",
+                mime="application/octet-stream" # Prisiljava preglednik na preuzimanje umjesto otvaranja
             )
+            st.balloons()
+            
     except Exception as e:
         st.error(f"Greška: {e}")

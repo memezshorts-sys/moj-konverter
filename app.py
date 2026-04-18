@@ -65,7 +65,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("    📄PDF u HUB3")
-st.write("### Prenesite izvadak u sivi okvir ispod")
+st.write("### Prenesite pdf file u sivi okvir ispod")
 
 # --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
 def extract_all_transactions(pdf_file):

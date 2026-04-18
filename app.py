@@ -8,29 +8,15 @@ import io
 # 1. Postavke stranice
 st.set_page_config(page_title="Panda Multi-Bank", page_icon="🐼", layout="centered")
 
-# --- DIZAJN I STILIZACIJA ---
+# --- DIZAJN (Zadržan tvoj Panda stil) ---
 st.markdown("""
     <style>
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     button[kind="headerNoPadding"] { background-color: #00d2ff !important; color: black !important; border-radius: 50% !important; z-index: 999999 !important; }
-    .stApp::before {
-        content: 'PANDA KNJIGOVODSTVO';
-        position: fixed; top: 50%; left: 50%;
-        transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 8vw; font-weight: 900;
-        color: rgba(255, 255, 255, 0.04);
-        white-space: nowrap; pointer-events: none; z-index: 0;
-        letter-spacing: 15px; text-transform: uppercase;
-    }
     [data-testid="stSidebar"] { background-color: #161625 !important; }
-    [data-testid="stSidebar"] label, [data-testid="stSidebar"] p, [data-testid="stSidebar"] h1 { color: #ffffff !important; font-weight: bold !important; }
-    div[data-baseweb="select"] > div { background-color: #2d3436 !important; color: white !important; border: 1px solid #00d2ff !important; }
-    ul[role="listbox"] { background-color: #2d3436 !important; }
-    li[role="option"] { background-color: #2d3436 !important; color: white !important; }
-    li[role="option"]:hover { background-color: #00d2ff !important; color: black !important; }
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] p { color: #ffffff !important; font-weight: bold !important; }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     [data-testid="stFileUploader"] { background-color: #d1d1d1 !important; border-radius: 15px !important; padding: 30px !important; }
-    [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     .stDownloadButton button { background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important; color: white !important; border-radius: 50px !important; width: 100%; }
     </style>
     """, unsafe_allow_html=True)
@@ -41,7 +27,7 @@ opcija = st.sidebar.radio("Odaberi banku:", ("Univerzalni Konverter", "HPB Speci
 
 st.title(f"📄 {opcija}")
 
-# --- LOGIKA ISČITAVANJA (Univerzalni, HPB i RBA) ---
+# --- ROBUSNA LOGIKA ISČITAVANJA ---
 def extract_all_data(pdf_file, tip_konvertera):
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
@@ -56,37 +42,36 @@ def extract_all_data(pdf_file, tip_konvertera):
     detected_transactions = []
     
     for i, line in enumerate(lines):
-        clean_line = line.replace(" ", "")
-        if iban_pattern.search(clean_line):
-            iban = iban_pattern.search(clean_line).group(0)
+        # Čistimo liniju za lakšu detekciju IBAN-a
+        line_no_spaces = line.replace(" ", "")
+        iban_match = iban_pattern.search(line_no_spaces)
+        
+        if iban_match:
+            iban = iban_match.group(0)
             amount, naziv, datum = 0.0, "Nepoznati Partner", "-"
             
-            # --- PRILAGODBA PRETRAGE PREMA BANCI ---
-            if tip_konvertera == "HPB Specijal":
-                search_range = range(-4, 6) # HPB je "razvučen"
-            elif tip_konvertera == "RBA Specijal":
-                search_range = range(-2, 5) # RBA je obično zbijeniji
-            else:
-                search_range = range(-2, 4) # Univerzalno
-
-            for offset in search_range:
-                if 0 <= i + offset < len(lines):
-                    s_line = lines[i+offset]
-                    
-                    # Traženje iznosa
-                    ams = amount_pattern.findall(s_line)
-                    for am in ams:
-                        val = float(am.replace('.', '').replace(',', '.'))
-                        if val > 0.01: amount = val
-                    
-                    # Traženje datuma
-                    d_match = date_pattern.search(s_line)
-                    if d_match: datum = d_match.group(1)
-                    
-                    # Traženje naziva
-                    if naziv == "Nepoznati Partner" and len(s_line) > 3:
-                        if not any(c.isdigit() for c in s_line) and "HR" not in s_line:
-                            naziv = s_line
+            # Gledamo blok od 6 redova oko IBAN-a (gore-dolje)
+            # Banke često stave naziv IZNAD ili ISPOD IBAN-a
+            window = lines[max(0, i-2) : min(len(lines), i+5)]
+            window_text = " ".join(window)
+            
+            # 1. Traženje iznosa (Prvi valjani iznos u tom bloku)
+            ams = amount_pattern.findall(window_text)
+            for am in ams:
+                val = float(am.replace('.', '').replace(',', '.'))
+                if val > 1.0 and amount == 0.0:
+                    amount = val
+            
+            # 2. Traženje datuma
+            d_match = date_pattern.search(window_text)
+            if d_match: datum = d_match.group(1)
+            
+            # 3. Traženje naziva (Najčišći red koji nije IBAN i nema brojeva)
+            for s_line in window:
+                if len(s_line) > 3 and not iban_pattern.search(s_line.replace(" ","")):
+                    if not any(c.isdigit() for c in s_line) and "HR" not in s_line:
+                        naziv = s_line
+                        break
 
             if amount > 0:
                 detected_transactions.append({
@@ -135,17 +120,18 @@ if up_file:
             suma = sum(float(tx["Duguje"].replace(',', '.')) for tx in data)
             current_date = data[0]["Datum"] if data[0]["Datum"] != "-" else datetime.now().strftime('%d.%m.%Y')
             
-            # Automatska naknada (univerzalna provjera)
+            # Provjera naknade 0,40 (ako postoji u tekstu)
             if "0,40" in raw_text:
                 data.append({"Datum": current_date, "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0,40", "Potražuje": "0,00"})
                 suma += 0.40
             
+            # Zadnji red: Izvod
             data.append({"Datum": current_date, "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0,00", "Potražuje": "{:.2f}".format(suma).replace('.', ',')})
             
             st.table(data)
             hub3_res = generate_hub3([t for t in data if t["Konto"] != "1000"])
             st.download_button("⬇️ Preuzmi HUB3", hub3_res, f"izvod_{opcija.replace(' ', '_').lower()}.hub3")
         else:
-            st.warning("Nije pronađeno ništa u PDF-u.")
+            st.warning("Nije pronađeno ništa. Provjerite jeste li odabrali ispravnu banku u izborniku.")
     except Exception as e:
         st.error(f"Greška: {e}")

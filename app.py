@@ -11,57 +11,47 @@ st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", l
 st.markdown("""
     <style>
     /* Pozadina aplikacije */
-    .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
-    
-    /* Vodeni žig */
-    .stApp::before {
-        content: 'Panda knjigovodstvo';
-        position: fixed; top: 50%; left: 50%;
-        transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 5rem; font-weight: bold;
-        color: rgba(255, 255, 255, 0.03);
-        pointer-events: none; z-index: 0;
+    .stApp { 
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); 
     }
     
-    /* Tekstovi */
+    /* Vodeni žig preko cijele stranice */
+    .stApp::before {
+        content: 'PANDA KNJIGOVODSTVO';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg); /* Centrirano i zakrenuto */
+        font-size: 8vw; /* Veličina fonta se prilagođava širini ekrana */
+        font-weight: 900;
+        color: rgba(255, 255, 255, 0.05); /* Vrlo prozirno bijela */
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: -1; /* Osigurava da je iza svih elemenata */
+        letter-spacing: 10px;
+    }
+    
+    /* Tekstovi aplikacije */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     
-    /* PRAVOKUTNIK (SIVI OKVIR) ZA UPLOAD */
+    /* PRAVOKUTNIK ZA UPLOAD */
     [data-testid="stFileUploader"] {
-        background-color: #d1d1d1 !important; /* Srednje siva boja pravokutnika */
+        background-color: #d1d1d1 !important;
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
+        z-index: 1; /* Da bude ispred vodenog žiga */
     }
 
-    /* GUMB (CRNI) UNUTAR SIVOG PRAVOKUTNIKA */
+    /* Ostatak vašeg koda za gumbe... */
     [data-testid="stFileUploader"] button {
-        background-color: #000000 !important; /* Potpuno crni gumb */
-        color: #ffffff !important;           /* Bijeli tekst na crnom gumbu */
-        border: none !important;
-        border-radius: 8px !important;
+        background-color: #000000 !important;
+        color: #ffffff !important;
         font-weight: bold !important;
-        padding: 0.6rem 1.2rem !important;
-    }
-    
-    [data-testid="stFileUploader"] button:hover {
-        background-color: #333333 !important; /* Tamno siva na hover */
-    }
-
-    /* Fix za tekst unutar sivog okvira (da se vidi na sivoj pozadini) */
-    [data-testid="stFileUploader"] section div {
-        color: #1e1e2f !important; 
-    }
-
-    /* Stil za download gumb na dnu */
-    .stDownloadButton button {
-        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
-        color: white !important;
-        border-radius: 50px !important;
-        font-weight: bold !important;
-        border: none !important;
     }
     </style>
+    """, unsafe_allow_html=True)
+
     """, unsafe_allow_html=True)
 
 st.title("    📄PDF u HUB3")

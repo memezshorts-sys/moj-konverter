@@ -5,70 +5,40 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# --- 1. DIZAJN I STILIZACIJA (Panda stil - Dark Mode s vodenim žigom) ---
+# --- 1. DIZAJN I STILIZACIJA ---
 st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
-    /* Pozadina aplikacije */
-    .stApp { 
-        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); 
-    }
-    
-    /* VODENI ŽIG PREKO CIJELE STRANICE */
+    .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
-        position: fixed;
-        top: 50%;
-        left: 50%;
+        position: fixed; top: 50%; left: 50%;
         transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 8vw; /* Prilagođava se širini ekrana */
-        font-weight: 900;
-        color: rgba(255, 255, 255, 0.04); /* Vrlo diskretno prozirno */
-        white-space: nowrap;
-        pointer-events: none;
-        z-index: 0;
-        letter-spacing: 15px;
-        text-transform: uppercase;
+        font-size: 8vw; font-weight: 900;
+        color: rgba(255, 255, 255, 0.04);
+        white-space: nowrap; pointer-events: none; z-index: 0;
+        letter-spacing: 15px; text-transform: uppercase;
     }
-    
-    /* Osiguravanje da je sadržaj ispred vodenog žiga */
-    .block-container {
-        position: relative;
-        z-index: 1;
-    }
-    
-    /* Tekstovi */
+    .block-container { position: relative; z-index: 1; }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
-    
-    /* PRAVOKUTNIK ZA UPLOAD */
     [data-testid="stFileUploader"] {
         background-color: #d1d1d1 !important;
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
     }
-
-    /* GUMB UNUTAR UPLOADA */
     [data-testid="stFileUploader"] button {
         background-color: #000000 !important;
         color: #ffffff !important;
-        border: none !important;
-        border-radius: 8px !important;
         font-weight: bold !important;
     }
-    
-    [data-testid="stFileUploader"] section div {
-        color: #1e1e2f !important; 
-    }
-
-    /* Stil za download gumb */
+    [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
         color: white !important;
         border-radius: 50px !important;
         font-weight: bold !important;
-        border: none !important;
         width: 100%;
     }
     </style>
@@ -77,7 +47,17 @@ st.markdown("""
 st.title("📄 PDF u HUB3")
 st.write("### Prenesite pdf file u sivi okvir ispod")
 
-# --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
+# --- 2. FUNKCIJE ZA EKSTRAKCIJU ---
+def find_dates(text):
+    """Traži datume u formatu DD.MM.YYYY. i vraća prvi i zadnji pronađeni."""
+    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
+    found_dates = date_pattern.findall(text)
+    if found_dates:
+        # Pretvori u datetime objekte za sortiranje
+        dt_objects = sorted(list(set([datetime.strptime(d, '%d.%m.%Y') for d in found_dates])))
+        return dt_objects[0].strftime('%d.%m.%Y'), dt_objects[-1].strftime('%d.%m.%Y')
+    return None, None
+
 def extract_all_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
@@ -162,8 +142,12 @@ uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 if uploaded_file:
     try:
         data, raw_text = extract_all_transactions(uploaded_file)
+        start_date, end_date = find_dates(raw_text)
         
         if data:
+            if start_date and end_date:
+                st.info(f"📅 Razdoblje izvoda: **{start_date}** do **{end_date}**")
+            
             ukupno = sum(float(tx["Duguje"]) for tx in data)
             if "0,40" in raw_text:
                 data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
@@ -175,10 +159,14 @@ if uploaded_file:
             st.table(data)
             
             hub3_data = generate_hub3(data)
+            
+            # Dinamički naziv datoteke s datumima
+            file_label = f"panda_{start_date}_do_{end_date}.hub3" if start_date else "panda_izvod.hub3"
+            
             st.download_button(
-                label="⬇️ Preuzmi HUB3 datoteku",
+                label=f"⬇️ Preuzmi HUB3 ({file_label})",
                 data=hub3_data,
-                file_name=f"panda_izvod_{datetime.now().strftime('%H%M%S')}.hub3",
+                file_name=file_label,
                 mime="application/octet-stream"
             )
         else:

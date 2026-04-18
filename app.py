@@ -23,21 +23,28 @@ st.markdown("""
         pointer-events: none; z-index: 0;
     }
     
-    /* Tekstovi */
-    html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
+    /* Općenito bijeli tekstovi za aplikaciju */
+    h1, h2, h3, label { color: #ffffff !important; }
     
     /* PRAVOKUTNIK (SIVI OKVIR) ZA UPLOAD */
     [data-testid="stFileUploader"] {
-        background-color: #d1d1d1 !important; /* Srednje siva boja pravokutnika */
+        background-color: #d1d1d1 !important; 
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
     }
 
+    /* TEKST "Povucite PDF..." UNUTAR SIVOG OKVIRA (Sada CRNI) */
+    [data-testid="stFileUploader"] section div p, 
+    [data-testid="stFileUploader"] section div span {
+        color: #000000 !important;
+        font-weight: 500 !important;
+    }
+
     /* GUMB (CRNI) UNUTAR SIVOG PRAVOKUTNIKA */
     [data-testid="stFileUploader"] button {
-        background-color: #000000 !important; /* Potpuno crni gumb */
-        color: #ffffff !important;           /* Bijeli tekst na crnom gumbu */
+        background-color: #000000 !important; 
+        color: #ffffff !important;           
         border: none !important;
         border-radius: 8px !important;
         font-weight: bold !important;
@@ -45,12 +52,7 @@ st.markdown("""
     }
     
     [data-testid="stFileUploader"] button:hover {
-        background-color: #333333 !important; /* Tamno siva na hover */
-    }
-
-    /* Fix za tekst unutar sivog okvira (da se vidi na sivoj pozadini) */
-    [data-testid="stFileUploader"] section div {
-        color: #1e1e2f !important; 
+        background-color: #333333 !important;
     }
 
     /* Stil za download gumb na dnu */

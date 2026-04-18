@@ -77,6 +77,11 @@ st.markdown("""
 st.title("📄 PDF u HUB3")
 st.write("### Prenesite pdf file u sivi okvir ispod")
 
+# --- FUNKCIJA ZA DATUM (DODANO) ---
+def extract_date(text):
+    match = re.search(r'(\d{2}\.\d{2}\.\d{4})', text)
+    return match.group(1) if match else "-"
+
 # --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
 def extract_all_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
@@ -114,6 +119,7 @@ def extract_all_transactions(pdf_file):
 
             if amount > 0:
                 detected_transactions.append({
+                    "Datum": extract_date(text), # DODAN SAMO DATUM
                     "Konto": "2221",
                     "Naziv": naziv[:35],
                     "IBAN": iban,
@@ -165,11 +171,13 @@ if uploaded_file:
         
         if data:
             ukupno = sum(float(tx["Duguje"]) for tx in data)
+            current_date = data[0]["Datum"] # Koristimo datum iz prve transakcije
+
             if "0,40" in raw_text:
-                data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
+                data.append({"Datum": current_date, "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
+            data.append({"Datum": current_date, "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
             st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
             st.table(data)

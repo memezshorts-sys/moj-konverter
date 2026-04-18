@@ -10,6 +10,7 @@ st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", l
 
 st.markdown("""
     <style>
+    /* Pozadina i vodeni žig */
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     .stApp::before {
         content: 'Panda knjigovodstvo';
@@ -19,27 +20,54 @@ st.markdown("""
         color: rgba(255, 255, 255, 0.03);
         pointer-events: none; z-index: 0;
     }
+    
+    /* Tekstovi */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
+    
+    /* Okvir za upload */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.02) !important;
+        background-color: rgba(255, 255, 255, 0.05) !important;
         border: 2px dashed #00d2ff !important;
         border-radius: 20px !important;
-        padding: 60px 20px !important;
-        min-height: 280px !important;
+        padding: 40px 20px !important;
     }
-    [data-testid="stFileUploader"] section { background-color: transparent !important; }
+
+    /* FIX: Vidljivost gumba "Browse files" */
+    [data-testid="stFileUploader"] button {
+        background-color: #00d2ff !important;
+        color: #1e1e2f !important;
+        border: none !important;
+        font-weight: bold !important;
+        padding: 0.5rem 1rem !important;
+    }
+    
+    [data-testid="stFileUploader"] button:hover {
+        background-color: #ffffff !important;
+        color: #1e1e2f !important;
+    }
+
+    /* Stil za download gumb */
     .stDownloadButton button {
-        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%);
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
         color: white !important;
-        border-radius: 50px; font-weight: bold;
+        border-radius: 50px !important;
+        font-weight: bold !important;
+        border: none !important;
+        padding: 0.7rem 2rem !important;
+    }
+    
+    /* Stil tablice za bolju preglednost */
+    div[data-testid="stTable"] {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📄 Univerzalni PDF u HUB3")
+st.title("📄 Panda PDF u HUB3")
 st.write("### Automatska analiza bilo kojeg bankovnog izvatka")
 
-# --- 2. UNIVERZALNA FUNKCIJA ZA EKSTRAKCIJU ---
+# --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
 def extract_all_transactions(pdf_file):
     all_data = []
     with pdfplumber.open(pdf_file) as pdf:
@@ -49,10 +77,7 @@ def extract_all_transactions(pdf_file):
     
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     
-    # Tražimo sve IBAN-ove i iznose u blizini (RegEx)
-    # Pronalazi HR + 19 znamenki
     iban_pattern = re.compile(r'HR\d{19}')
-    # Pronalazi iznose u formatu 1.234,56 ili 123,45
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
 
     detected_transactions = []
@@ -66,20 +91,15 @@ def extract_all_transactions(pdf_file):
             amount = 0.0
             naziv = "Nepoznati Partner"
             
-            # Gledamo okolne redove (-2 do +3) za iznos i naziv
             for offset in range(-2, 4):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
-                    
-                    # Tražimo iznos
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
-                        # Filtriramo naknade (često su 0,40 ili slično) i uzimamo prvi veći iznos
                         if val > 1.0 and amount == 0.0:
                             amount = val
                     
-                    # Tražimo naziv (ako linija ne sadrži IBAN ili brojeve, vjerojatno je ime)
                     if naziv == "Nepoznati Partner" and len(search_line) > 3:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
                             naziv = search_line
@@ -95,7 +115,7 @@ def extract_all_transactions(pdf_file):
     
     return detected_transactions, text
 
-# --- 3. GENERIRANJE HUB3 ---
+# --- 3. GENERIRANJE HUB3 (PAIN.001) ---
 def generate_hub3(transactions):
     ns = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
     ET.register_namespace('', ns)
@@ -129,7 +149,7 @@ def generate_hub3(transactions):
     return output.getvalue()
 
 # --- 4. WEB SUČELJE ---
-uploaded_file = st.file_uploader("Povucite bilo koji PDF izvadak (ZABA, PBZ, RBA, HPB...)", type="pdf")
+uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 
 if uploaded_file:
     try:
@@ -137,16 +157,13 @@ if uploaded_file:
         
         if data:
             ukupno = sum(float(tx["Duguje"]) for tx in data)
-            
-            # Detekcija naknade (ako postoji 0,40 ili slično u tekstu)
             if "0,40" in raw_text:
                 data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            # Zadnji redak: Izvod (Konto 1000)
             data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
-            st.success(f"Analiza završena! Pronađeno transakcija: {len(data)-2}")
+            st.success(f"Pronađeno transakcija: {len(data)-2}")
             st.table(data)
             
             hub3_data = generate_hub3(data)
@@ -157,7 +174,7 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
         else:
-            st.warning("Nije pronađena nijedna transakcija. Provjerite je li PDF digitalno generiran (ne skeniran).")
+            st.warning("Nema prepoznatih transakcija. Provjerite format PDF-a.")
             
     except Exception as e:
-        st.error(f"Greška pri obradi: {e}")
+        st.error(f"Greška: {e}")

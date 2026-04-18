@@ -5,13 +5,15 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# --- 1. DIZAJN I STILIZACIJA (Panda stil) ---
+# --- 1. DIZAJN I STILIZACIJA (Panda stil - Dark Mode) ---
 st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
-    /* Pozadina i vodeni žig */
+    /* Pozadina aplikacije */
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
+    
+    /* Vodeni žig */
     .stApp::before {
         content: 'Panda knjigovodstvo';
         position: fixed; top: 50%; left: 50%;
@@ -24,59 +26,55 @@ st.markdown("""
     /* Tekstovi */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     
-    /* Okvir za upload */
+    /* PRAVOKUTNIK (SIVI OKVIR) ZA UPLOAD */
     [data-testid="stFileUploader"] {
-        background-color: rgba(255, 255, 255, 0.05) !important;
-        border: 2px dashed #00d2ff !important;
-        border-radius: 20px !important;
-        padding: 40px 20px !important;
+        background-color: #d1d1d1 !important; /* Srednje siva boja pravokutnika */
+        border: 2px solid #a0a0a0 !important;
+        border-radius: 15px !important;
+        padding: 30px !important;
     }
 
-    /* FIX: Vidljivost gumba "Browse files" */
+    /* GUMB (CRNI) UNUTAR SIVOG PRAVOKUTNIKA */
     [data-testid="stFileUploader"] button {
-        background-color: #00d2ff !important;
-        color: #1e1e2f !important;
+        background-color: #000000 !important; /* Potpuno crni gumb */
+        color: #ffffff !important;           /* Bijeli tekst na crnom gumbu */
         border: none !important;
+        border-radius: 8px !important;
         font-weight: bold !important;
-        padding: 0.5rem 1rem !important;
+        padding: 0.6rem 1.2rem !important;
     }
     
     [data-testid="stFileUploader"] button:hover {
-        background-color: #ffffff !important;
-        color: #1e1e2f !important;
+        background-color: #333333 !important; /* Tamno siva na hover */
     }
 
-    /* Stil za download gumb */
+    /* Fix za tekst unutar sivog okvira (da se vidi na sivoj pozadini) */
+    [data-testid="stFileUploader"] section div {
+        color: #1e1e2f !important; 
+    }
+
+    /* Stil za download gumb na dnu */
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
         color: white !important;
         border-radius: 50px !important;
         font-weight: bold !important;
         border: none !important;
-        padding: 0.7rem 2rem !important;
-    }
-    
-    /* Stil tablice za bolju preglednost */
-    div[data-testid="stTable"] {
-        background-color: rgba(255, 255, 255, 0.05);
-        border-radius: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("📄 Panda PDF u HUB3")
-st.write("### Automatska analiza bilo kojeg bankovnog izvatka")
+st.write("### Prenesite izvadak u sivi okvir ispod")
 
 # --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
 def extract_all_transactions(pdf_file):
-    all_data = []
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
         for page in pdf.pages:
             text += page.extract_text() + "\n"
     
     lines = [l.strip() for l in text.split('\n') if l.strip()]
-    
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
 
@@ -115,7 +113,7 @@ def extract_all_transactions(pdf_file):
     
     return detected_transactions, text
 
-# --- 3. GENERIRANJE HUB3 (PAIN.001) ---
+# --- 3. GENERIRANJE HUB3 ---
 def generate_hub3(transactions):
     ns = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
     ET.register_namespace('', ns)
@@ -163,7 +161,7 @@ if uploaded_file:
             
             data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
-            st.success(f"Pronađeno transakcija: {len(data)-2}")
+            st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
             st.table(data)
             
             hub3_data = generate_hub3(data)
@@ -174,7 +172,7 @@ if uploaded_file:
                 mime="application/octet-stream"
             )
         else:
-            st.warning("Nema prepoznatih transakcija. Provjerite format PDF-a.")
+            st.warning("Nije pronađena nijedna transakcija.")
             
     except Exception as e:
         st.error(f"Greška: {e}")

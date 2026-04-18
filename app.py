@@ -5,34 +5,71 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# --- 1. DIZAJN I STILIZACIJA ---
+# --- 1. DIZAJN I STILIZACIJA (Panda stil - Dark Mode s vodenim žigom) ---
 st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
-    .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
+    /* Pozadina aplikacije */
+    .stApp { 
+        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); 
+    }
+    
+    /* VODENI ŽIG PREKO CIJELE STRANICE */
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 8vw; font-weight: 900; color: rgba(255, 255, 255, 0.04);
-        pointer-events: none; z-index: 0; white-space: nowrap;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 8vw; /* Prilagođava se širini ekrana */
+        font-weight: 900;
+        color: rgba(255, 255, 255, 0.04); /* Vrlo diskretno prozirno */
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 0;
+        letter-spacing: 15px;
+        text-transform: uppercase;
     }
+    
+    /* Osiguravanje da je sadržaj ispred vodenog žiga */
+    .block-container {
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* Tekstovi */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
+    
+    /* PRAVOKUTNIK ZA UPLOAD */
     [data-testid="stFileUploader"] {
         background-color: #d1d1d1 !important;
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
     }
-    [data-testid="stFileUploader"] section div p { color: #000000 !important; font-weight: bold !important; }
+
+    /* GUMB UNUTAR UPLOADA */
     [data-testid="stFileUploader"] button {
         background-color: #000000 !important;
         color: #ffffff !important;
+        border: none !important;
         border-radius: 8px !important;
+        font-weight: bold !important;
     }
+    
+    [data-testid="stFileUploader"] section div {
+        color: #1e1e2f !important; 
+    }
+
+    /* Stil za download gumb */
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
-        color: white !important; border-radius: 50px !important; width: 100%;
+        color: white !important;
+        border-radius: 50px !important;
+        font-weight: bold !important;
+        border: none !important;
+        width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -48,11 +85,8 @@ def extract_all_transactions(pdf_file):
             text += page.extract_text() + "\n"
     
     lines = [l.strip() for l in text.split('\n') if l.strip()]
-    
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
-    # Traži datum u formatu DD.MM.YYYY. ili DD.MM.YY
-    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{2})')
 
     detected_transactions = []
     
@@ -64,33 +98,22 @@ def extract_all_transactions(pdf_file):
             iban = iban_match.group(0)
             amount = 0.0
             naziv = "Nepoznati Partner"
-            datum = datetime.now().strftime('%d.%m.%Y') # Default ako ne nađe
             
-            # Gledamo okolne redove za ostale podatke
-            for offset in range(-3, 4):
+            for offset in range(-2, 4):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
-                    
-                    # Iznos
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
                         if val > 1.0 and amount == 0.0:
                             amount = val
                     
-                    # Datum
-                    date_match = date_pattern.search(search_line)
-                    if date_match:
-                        datum = date_match.group(0)
-
-                    # Naziv
                     if naziv == "Nepoznati Partner" and len(search_line) > 3:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
                             naziv = search_line
 
             if amount > 0:
                 detected_transactions.append({
-                    "Datum": datum,
                     "Konto": "2221",
                     "Naziv": naziv[:35],
                     "IBAN": iban,
@@ -143,10 +166,10 @@ if uploaded_file:
         if data:
             ukupno = sum(float(tx["Duguje"]) for tx in data)
             if "0,40" in raw_text:
-                data.append({"Datum": data[0]["Datum"], "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
+                data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            data.append({"Datum": data[0]["Datum"], "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
+            data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
             st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
             st.table(data)
@@ -162,4 +185,4 @@ if uploaded_file:
             st.warning("Nije pronađena nijedna transakcija.")
             
     except Exception as e:
-        st.error(f"Greška: {e}")
+        st.error(f"Greška: {e}") 

@@ -5,13 +5,13 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. Postavke stranice - OVO MORA BITI PRVO
+# 1. Postavke stranice
 st.set_page_config(page_title="Panda Multi-Bank", page_icon="🐼", layout="centered")
 
-# --- DIZAJN I STILIZACIJA ---
+# --- DIZAJN I STILIZACIJA (SVE USKLAĐENO) ---
 st.markdown("""
     <style>
-    /* Pozadina aplikacije */
+    /* Pozadina glavne aplikacije */
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     
     /* Vodeni žig */
@@ -25,41 +25,53 @@ st.markdown("""
         letter-spacing: 15px; text-transform: uppercase;
     }
 
-    /* --- STILIZACIJA SIDEBARA (PREGLEDNIJI TEKST) --- */
+    /* --- SIDEBAR I IZBORNIK --- */
     [data-testid="stSidebar"] {
-        background-color: #161625 !important; /* Tamnija pozadina sidebara */
+        background-color: #161625 !important;
     }
     
-    /* Bijela boja za naslove, tekst i labelice u sidebaru */
-    [data-testid="stSidebar"] .stText, 
-    [data-testid="stSidebar"] label, 
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3,
-    [data-testid="stSidebar"] p {
+    /* Tekstovi u sidebaru */
+    [data-testid="stSidebar"] label, [data-testid="stSidebar"] p, [data-testid="stSidebar"] h1 {
         color: #ffffff !important;
         font-weight: bold !important;
     }
 
-    /* Stil za dropdown izbornik u sidebaru */
+    /* Dropdown zatvoren */
     div[data-baseweb="select"] > div {
         background-color: #2d3436 !important;
         color: white !important;
         border: 1px solid #00d2ff !important;
     }
 
-    /* Glavni tekstovi u aplikaciji */
+    /* --- LISTA KOJA SE OTVORI (DROPDOWN MENU) --- */
+    /* Pozadina cijele liste i svake stavke */
+    ul[role="listbox"] {
+        background-color: #2d3436 !important;
+    }
+    
+    li[role="option"] {
+        background-color: #2d3436 !important;
+        color: white !important;
+    }
+
+    /* Boja kada mišem prijeđete preko banke u listi */
+    li[role="option"]:hover {
+        background-color: #00d2ff !important;
+        color: black !important;
+    }
+
+    /* Glavni tekstovi */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     
-    /* PRAVOKUTNIK ZA UPLOAD */
+    /* Upload pravokutnik */
     [data-testid="stFileUploader"] { 
         background-color: #d1d1d1 !important; 
         border-radius: 15px !important; 
         padding: 30px !important; 
     }
-    
     [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     
+    /* Gumb za download */
     .stDownloadButton button { 
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important; 
         color: white !important; 
@@ -134,8 +146,8 @@ if up_file:
                 search_range = range(-3, 5) if banka != "Univerzalni Konverter" else range(-2, 4)
                 amount, naziv = 0.0, "Partner"
                 for off in search_range:
-                    if 0 <= i + off < len(lines):
-                        s_line = lines[i+off]
+                    if 0 <= i + offset < len(lines):
+                        s_line = lines[i+offset]
                         ams = amt_pat.findall(s_line)
                         for am in ams:
                             val = float(am.replace('.', '').replace(',', '.'))

@@ -87,6 +87,7 @@ def extract_all_transactions(pdf_file):
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
+    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})') # Pattern za datum
 
     detected_transactions = []
     
@@ -98,22 +99,33 @@ def extract_all_transactions(pdf_file):
             iban = iban_match.group(0)
             amount = 0.0
             naziv = "Nepoznati Partner"
+            datum = "Nije pronađen"
             
-            for offset in range(-2, 4):
+            # Traženje podataka u okolini IBAN-a
+            for offset in range(-3, 4):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
+                    
+                    # Traženje iznosa
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
                         if val > 1.0 and amount == 0.0:
                             amount = val
                     
+                    # Traženje datuma
+                    date_match = date_pattern.search(search_line)
+                    if date_match and datum == "Nije pronađen":
+                        datum = date_match.group(1)
+                    
+                    # Traženje naziva
                     if naziv == "Nepoznati Partner" and len(search_line) > 3:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
                             naziv = search_line
 
             if amount > 0:
                 detected_transactions.append({
+                    "Datum": datum,
                     "Konto": "2221",
                     "Naziv": naziv[:35],
                     "IBAN": iban,
@@ -165,11 +177,15 @@ if uploaded_file:
         
         if data:
             ukupno = sum(float(tx["Duguje"]) for tx in data)
+            
+            # Datum za naknadu i izvod uzima se od prve transakcije radi dosljednosti
+            glavni_datum = data[0]["Datum"] if data else datetime.now().strftime('%d.%m.%Y')
+
             if "0,40" in raw_text:
-                data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
+                data.append({"Datum": glavni_datum, "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
+            data.append({"Datum": glavni_datum, "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
             st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
             st.table(data)
@@ -185,4 +201,4 @@ if uploaded_file:
             st.warning("Nije pronađena nijedna transakcija.")
             
     except Exception as e:
-        st.error(f"Greška: {e}") 
+        st.error(f"Greška: {e}")

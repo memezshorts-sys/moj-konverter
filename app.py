@@ -8,12 +8,20 @@ import io
 # 1. Postavke stranice
 st.set_page_config(page_title="Panda Multi-Bank", page_icon="🐼", layout="centered")
 
-# --- DIZAJN I STILIZACIJA (SVE USKLAĐENO) ---
+# --- DIZAJN I STILIZACIJA (S FIXOM ZA SIDEBAR GUMB) ---
 st.markdown("""
     <style>
     /* Pozadina glavne aplikacije */
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     
+    /* FIX ZA SIDEBAR GUMB (Mali znak > koji se vidi kad je zatvoren) */
+    button[kind="headerNoPadding"] {
+        background-color: #00d2ff !important; /* Tirkizna boja gumba da se lakše vidi */
+        color: black !important;
+        border-radius: 50% !important;
+        z-index: 999999 !important; /* Uvijek na vrhu svih slojeva */
+    }
+
     /* Vodeni žig */
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
@@ -28,6 +36,7 @@ st.markdown("""
     /* --- SIDEBAR I IZBORNIK --- */
     [data-testid="stSidebar"] {
         background-color: #161625 !important;
+        z-index: 100 !important;
     }
     
     /* Tekstovi u sidebaru */
@@ -44,7 +53,6 @@ st.markdown("""
     }
 
     /* --- LISTA KOJA SE OTVORI (DROPDOWN MENU) --- */
-    /* Pozadina cijele liste i svake stavke */
     ul[role="listbox"] {
         background-color: #2d3436 !important;
     }
@@ -54,13 +62,12 @@ st.markdown("""
         color: white !important;
     }
 
-    /* Boja kada mišem prijeđete preko banke u listi */
     li[role="option"]:hover {
         background-color: #00d2ff !important;
         color: black !important;
     }
 
-    /* Glavni tekstovi */
+    /* Glavni tekstovi aplikacije */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     
     /* Upload pravokutnik */
@@ -68,6 +75,8 @@ st.markdown("""
         background-color: #d1d1d1 !important; 
         border-radius: 15px !important; 
         padding: 30px !important; 
+        position: relative;
+        z-index: 10;
     }
     [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     
@@ -143,11 +152,12 @@ if up_file:
             clean_l = line.replace(" ", "")
             if iban_pat.search(clean_l):
                 iban = iban_pat.search(clean_l).group(0)
+                # Prilagođena pretraga ovisno o banci
                 search_range = range(-3, 5) if banka != "Univerzalni Konverter" else range(-2, 4)
                 amount, naziv = 0.0, "Partner"
                 for off in search_range:
-                    if 0 <= i + offset < len(lines):
-                        s_line = lines[i+offset]
+                    if 0 <= i + off < len(lines):
+                        s_line = lines[i+off]
                         ams = amt_pat.findall(s_line)
                         for am in ams:
                             val = float(am.replace('.', '').replace(',', '.'))

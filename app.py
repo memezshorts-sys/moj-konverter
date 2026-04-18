@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# --- 1. DIZAJN I STILIZACIJA (Panda stil - Dark Mode) ---
+# --- 1. DIZAJN I STILIZACIJA (Panda stil - Dark Mode s vodenim žigom) ---
 st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
@@ -15,23 +15,30 @@ st.markdown("""
         background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); 
     }
     
-    /* Vodeni žig preko cijele stranice */
+    /* VODENI ŽIG PREKO CIJELE STRANICE */
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
         position: fixed;
         top: 50%;
         left: 50%;
-        transform: translate(-50%, -50%) rotate(-30deg); /* Centrirano i zakrenuto */
-        font-size: 8vw; /* Veličina fonta se prilagođava širini ekrana */
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 8vw; /* Prilagođava se širini ekrana */
         font-weight: 900;
-        color: rgba(255, 255, 255, 0.05); /* Vrlo prozirno bijela */
+        color: rgba(255, 255, 255, 0.04); /* Vrlo diskretno prozirno */
         white-space: nowrap;
         pointer-events: none;
-        z-index: -1; /* Osigurava da je iza svih elemenata */
-        letter-spacing: 10px;
+        z-index: 0;
+        letter-spacing: 15px;
+        text-transform: uppercase;
     }
     
-    /* Tekstovi aplikacije */
+    /* Osiguravanje da je sadržaj ispred vodenog žiga */
+    .block-container {
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* Tekstovi */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     
     /* PRAVOKUTNIK ZA UPLOAD */
@@ -40,21 +47,34 @@ st.markdown("""
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
-        z-index: 1; /* Da bude ispred vodenog žiga */
     }
 
-    /* Ostatak vašeg koda za gumbe... */
+    /* GUMB UNUTAR UPLOADA */
     [data-testid="stFileUploader"] button {
         background-color: #000000 !important;
         color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
         font-weight: bold !important;
+    }
+    
+    [data-testid="stFileUploader"] section div {
+        color: #1e1e2f !important; 
+    }
+
+    /* Stil za download gumb */
+    .stDownloadButton button {
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
+        color: white !important;
+        border-radius: 50px !important;
+        font-weight: bold !important;
+        border: none !important;
+        width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    """, unsafe_allow_html=True)
-
-st.title("    📄PDF u HUB3")
+st.title("📄 PDF u HUB3")
 st.write("### Prenesite pdf file u sivi okvir ispod")
 
 # --- 2. FUNKCIJA ZA EKSTRAKCIJU ---

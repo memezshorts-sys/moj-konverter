@@ -48,16 +48,6 @@ st.title("📄 PDF u HUB3")
 st.write("### Prenesite pdf file u sivi okvir ispod")
 
 # --- 2. FUNKCIJE ZA EKSTRAKCIJU ---
-def find_dates(text):
-    """Traži datume u formatu DD.MM.YYYY. i vraća prvi i zadnji pronađeni."""
-    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
-    found_dates = date_pattern.findall(text)
-    if found_dates:
-        # Pretvori u datetime objekte za sortiranje
-        dt_objects = sorted(list(set([datetime.strptime(d, '%d.%m.%Y') for d in found_dates])))
-        return dt_objects[0].strftime('%d.%m.%Y'), dt_objects[-1].strftime('%d.%m.%Y')
-    return None, None
-
 def extract_all_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
@@ -67,6 +57,7 @@ def extract_all_transactions(pdf_file):
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
+    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
 
     detected_transactions = []
     
@@ -78,22 +69,33 @@ def extract_all_transactions(pdf_file):
             iban = iban_match.group(0)
             amount = 0.0
             naziv = "Nepoznati Partner"
+            datum = ""
             
-            for offset in range(-2, 4):
+            # Pretraživanje okoline IBAN-a za ostale podatke
+            for offset in range(-3, 5):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
+                    
+                    # Traženje iznosa
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
                         if val > 1.0 and amount == 0.0:
                             amount = val
                     
+                    # Traženje datuma transakcije
+                    d_match = date_pattern.search(search_line)
+                    if d_match and not datum:
+                        datum = d_match.group(1)
+                    
+                    # Traženje naziva
                     if naziv == "Nepoznati Partner" and len(search_line) > 3:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
                             naziv = search_line
 
             if amount > 0:
                 detected_transactions.append({
+                    "Datum": datum if datum else "N/A",
                     "Konto": "2221",
                     "Naziv": naziv[:35],
                     "IBAN": iban,
@@ -142,31 +144,28 @@ uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 if uploaded_file:
     try:
         data, raw_text = extract_all_transactions(uploaded_file)
-        start_date, end_date = find_dates(raw_text)
         
         if data:
-            if start_date and end_date:
-                st.info(f"📅 Razdoblje izvoda: **{start_date}** do **{end_date}**")
-            
             ukupno = sum(float(tx["Duguje"]) for tx in data)
+            
+            # Naknada banke (ako postoji)
             if "0,40" in raw_text:
-                data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
+                data.append({"Datum": data[0]["Datum"], "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
+            # Stavka izvod
+            data.append({"Datum": data[0]["Datum"], "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
             st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
+            
+            # Prikaz tablice sa svim podacima
             st.table(data)
             
             hub3_data = generate_hub3(data)
-            
-            # Dinamički naziv datoteke s datumima
-            file_label = f"panda_{start_date}_do_{end_date}.hub3" if start_date else "panda_izvod.hub3"
-            
             st.download_button(
-                label=f"⬇️ Preuzmi HUB3 ({file_label})",
+                label="⬇️ Preuzmi HUB3 datoteku",
                 data=hub3_data,
-                file_name=file_label,
+                file_name=f"panda_izvod_{datetime.now().strftime('%H%M%S')}.hub3",
                 mime="application/octet-stream"
             )
         else:

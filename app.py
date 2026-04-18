@@ -5,7 +5,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# 1. Postavke stranice - MORA BITI PRVO
+# 1. Postavke stranice
 st.set_page_config(page_title="Panda Multi-Bank", page_icon="🐼", layout="centered")
 
 # --- DIZAJN I STILIZACIJA ---
@@ -37,22 +37,22 @@ st.markdown("""
 
 # --- IZBORNIK ---
 st.sidebar.title("🐼 Panda Postavke")
-banka = st.sidebar.selectbox("Odaberite banku:", ("Univerzalni Konverter", "HPB", "RBA"))
-st.title(f"📄 {banka} Konverter")
+opcija = st.sidebar.radio("Odaberi banku:", ("Univerzalni Konverter", "HPB Specijal", "RBA Specijal"))
 
-# --- LOGIKA ISČITAVANJA ---
-def extract_all_data(pdf_file):
+st.title(f"📄 {opcija}")
+
+# --- LOGIKA ISČITAVANJA (Univerzalni, HPB i RBA) ---
+def extract_all_data(pdf_file, tip_konvertera):
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
         for page in pdf.pages:
             text += (page.extract_text() or "") + "\n"
     
-    # POPRAVLJENA LINIJA 36
     lines = [l.strip() for l in text.split('\n') if l.strip()]
-    
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
     date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
+    
     detected_transactions = []
     
     for i, line in enumerate(lines):
@@ -61,23 +61,42 @@ def extract_all_data(pdf_file):
             iban = iban_pattern.search(clean_line).group(0)
             amount, naziv, datum = 0.0, "Nepoznati Partner", "-"
             
-            search_range = range(-3, 5) if banka != "Univerzalni Konverter" else range(-2, 4)
+            # --- PRILAGODBA PRETRAGE PREMA BANCI ---
+            if tip_konvertera == "HPB Specijal":
+                search_range = range(-4, 6) # HPB je "razvučen"
+            elif tip_konvertera == "RBA Specijal":
+                search_range = range(-2, 5) # RBA je obično zbijeniji
+            else:
+                search_range = range(-2, 4) # Univerzalno
+
             for offset in search_range:
                 if 0 <= i + offset < len(lines):
                     s_line = lines[i+offset]
+                    
+                    # Traženje iznosa
                     ams = amount_pattern.findall(s_line)
                     for am in ams:
                         val = float(am.replace('.', '').replace(',', '.'))
-                        if val > 1.0 and amount == 0.0: amount = val
+                        if val > 0.01: amount = val
+                    
+                    # Traženje datuma
                     d_match = date_pattern.search(s_line)
-                    if d_match and datum == "-": datum = d_match.group(1)
+                    if d_match: datum = d_match.group(1)
+                    
+                    # Traženje naziva
                     if naziv == "Nepoznati Partner" and len(s_line) > 3:
-                        if not any(c.isdigit() for c in s_line) and "HR" not in s_line: naziv = s_line
+                        if not any(c.isdigit() for c in s_line) and "HR" not in s_line:
+                            naziv = s_line
 
             if amount > 0:
-                detected_transactions.append({"Datum": datum, "Konto": "2221", "Naziv": naziv[:35], "IBAN": iban, "Duguje": "{:.2f}".format(amount).replace('.', ','), "Potražuje": "0,00"})
+                detected_transactions.append({
+                    "Datum": datum, "Konto": "2221", "Naziv": naziv[:35],
+                    "IBAN": iban, "Duguje": "{:.2f}".format(amount).replace('.', ','), "Potražuje": "0,00"
+                })
+                
     return detected_transactions, text
 
+# --- POMOĆNE FUNKCIJE ---
 def generate_hub3(transactions):
     ns = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
     ET.register_namespace('', ns)
@@ -111,17 +130,21 @@ def generate_hub3(transactions):
 up_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
 if up_file:
     try:
-        data, raw_text = extract_all_data(up_file)
+        data, raw_text = extract_all_data(up_file, opcija)
         if data:
             suma = sum(float(tx["Duguje"].replace(',', '.')) for tx in data)
             current_date = data[0]["Datum"] if data[0]["Datum"] != "-" else datetime.now().strftime('%d.%m.%Y')
+            
+            # Automatska naknada (univerzalna provjera)
             if "0,40" in raw_text:
                 data.append({"Datum": current_date, "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0,40", "Potražuje": "0,00"})
                 suma += 0.40
+            
             data.append({"Datum": current_date, "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0,00", "Potražuje": "{:.2f}".format(suma).replace('.', ',')})
+            
             st.table(data)
             hub3_res = generate_hub3([t for t in data if t["Konto"] != "1000"])
-            st.download_button("⬇️ Preuzmi HUB3", hub3_res, f"izvod_{banka.lower()}.hub3")
+            st.download_button("⬇️ Preuzmi HUB3", hub3_res, f"izvod_{opcija.replace(' ', '_').lower()}.hub3")
         else:
             st.warning("Nije pronađeno ništa u PDF-u.")
     except Exception as e:

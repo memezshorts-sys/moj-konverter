@@ -8,10 +8,13 @@ import io
 # 1. Postavke stranice - OVO MORA BITI PRVO
 st.set_page_config(page_title="Panda Multi-Bank", page_icon="🐼", layout="centered")
 
-# --- DIZAJN ---
+# --- DIZAJN I STILIZACIJA ---
 st.markdown("""
     <style>
+    /* Pozadina aplikacije */
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
+    
+    /* Vodeni žig */
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
         position: fixed; top: 50%; left: 50%;
@@ -21,17 +24,55 @@ st.markdown("""
         white-space: nowrap; pointer-events: none; z-index: 0;
         letter-spacing: 15px; text-transform: uppercase;
     }
+
+    /* --- STILIZACIJA SIDEBARA (PREGLEDNIJI TEKST) --- */
+    [data-testid="stSidebar"] {
+        background-color: #161625 !important; /* Tamnija pozadina sidebara */
+    }
+    
+    /* Bijela boja za naslove, tekst i labelice u sidebaru */
+    [data-testid="stSidebar"] .stText, 
+    [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] h1, 
+    [data-testid="stSidebar"] h2, 
+    [data-testid="stSidebar"] h3,
+    [data-testid="stSidebar"] p {
+        color: #ffffff !important;
+        font-weight: bold !important;
+    }
+
+    /* Stil za dropdown izbornik u sidebaru */
+    div[data-baseweb="select"] > div {
+        background-color: #2d3436 !important;
+        color: white !important;
+        border: 1px solid #00d2ff !important;
+    }
+
+    /* Glavni tekstovi u aplikaciji */
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
-    [data-testid="stFileUploader"] { background-color: #d1d1d1 !important; border-radius: 15px !important; padding: 30px !important; }
+    
+    /* PRAVOKUTNIK ZA UPLOAD */
+    [data-testid="stFileUploader"] { 
+        background-color: #d1d1d1 !important; 
+        border-radius: 15px !important; 
+        padding: 30px !important; 
+    }
+    
     [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
-    .stDownloadButton button { background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important; color: white !important; border-radius: 50px !important; width: 100%; }
+    
+    .stDownloadButton button { 
+        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important; 
+        color: white !important; 
+        border-radius: 50px !important; 
+        width: 100%; 
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # --- IZBORNIK U SIDEBARU ---
 st.sidebar.title("🐼 Panda Postavke")
 banka = st.sidebar.selectbox(
-    "Odaberite banku:",
+    "Odaberite banku za konverziju:",
     ("Univerzalni Konverter", "HPB", "RBA")
 )
 
@@ -79,7 +120,6 @@ if up_file:
         with pdfplumber.open(up_file) as pdf:
             raw_t = "\n".join([p.extract_text() or "" for p in pdf.pages])
         
-        # POPRAVLJENA LINIJA (sada u jednom redu)
         lines = [l.strip() for l in raw_t.split('\n') if l.strip()]
         
         iban_pat = re.compile(r'HR\d{19}')
@@ -91,7 +131,6 @@ if up_file:
             clean_l = line.replace(" ", "")
             if iban_pat.search(clean_l):
                 iban = iban_pat.search(clean_l).group(0)
-                # Širi krug pretrage za specifične banke
                 search_range = range(-3, 5) if banka != "Univerzalni Konverter" else range(-2, 4)
                 amount, naziv = 0.0, "Partner"
                 for off in search_range:

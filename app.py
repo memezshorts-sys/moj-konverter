@@ -13,14 +13,10 @@ st.markdown("""
     .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
-        position: fixed; top: 50%; left: 50%;
-        transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 8vw; font-weight: 900;
-        color: rgba(255, 255, 255, 0.04);
-        white-space: nowrap; pointer-events: none; z-index: 0;
-        letter-spacing: 15px; text-transform: uppercase;
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 8vw; font-weight: 900; color: rgba(255, 255, 255, 0.04);
+        pointer-events: none; z-index: 0; white-space: nowrap;
     }
-    .block-container { position: relative; z-index: 1; }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
     [data-testid="stFileUploader"] {
         background-color: #d1d1d1 !important;
@@ -28,18 +24,15 @@ st.markdown("""
         border-radius: 15px !important;
         padding: 30px !important;
     }
+    [data-testid="stFileUploader"] section div p { color: #000000 !important; font-weight: bold !important; }
     [data-testid="stFileUploader"] button {
         background-color: #000000 !important;
         color: #ffffff !important;
-        font-weight: bold !important;
+        border-radius: 8px !important;
     }
-    [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
-        color: white !important;
-        border-radius: 50px !important;
-        font-weight: bold !important;
-        width: 100%;
+        color: white !important; border-radius: 50px !important; width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -47,7 +40,7 @@ st.markdown("""
 st.title("📄 PDF u HUB3")
 st.write("### Prenesite pdf file u sivi okvir ispod")
 
-# --- 2. FUNKCIJE ZA EKSTRAKCIJU ---
+# --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
 def extract_all_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
@@ -55,9 +48,11 @@ def extract_all_transactions(pdf_file):
             text += page.extract_text() + "\n"
     
     lines = [l.strip() for l in text.split('\n') if l.strip()]
+    
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
-    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
+    # Traži datum u formatu DD.MM.YYYY. ili DD.MM.YY
+    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4}|\d{2}\.\d{2}\.\d{2})')
 
     detected_transactions = []
     
@@ -69,33 +64,33 @@ def extract_all_transactions(pdf_file):
             iban = iban_match.group(0)
             amount = 0.0
             naziv = "Nepoznati Partner"
-            datum = ""
+            datum = datetime.now().strftime('%d.%m.%Y') # Default ako ne nađe
             
-            # Pretraživanje okoline IBAN-a za ostale podatke
-            for offset in range(-3, 5):
+            # Gledamo okolne redove za ostale podatke
+            for offset in range(-3, 4):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
                     
-                    # Traženje iznosa
+                    # Iznos
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
                         if val > 1.0 and amount == 0.0:
                             amount = val
                     
-                    # Traženje datuma transakcije
-                    d_match = date_pattern.search(search_line)
-                    if d_match and not datum:
-                        datum = d_match.group(1)
-                    
-                    # Traženje naziva
+                    # Datum
+                    date_match = date_pattern.search(search_line)
+                    if date_match:
+                        datum = date_match.group(0)
+
+                    # Naziv
                     if naziv == "Nepoznati Partner" and len(search_line) > 3:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
                             naziv = search_line
 
             if amount > 0:
                 detected_transactions.append({
-                    "Datum": datum if datum else "N/A",
+                    "Datum": datum,
                     "Konto": "2221",
                     "Naziv": naziv[:35],
                     "IBAN": iban,
@@ -147,18 +142,13 @@ if uploaded_file:
         
         if data:
             ukupno = sum(float(tx["Duguje"]) for tx in data)
-            
-            # Naknada banke (ako postoji)
             if "0,40" in raw_text:
                 data.append({"Datum": data[0]["Datum"], "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
                 ukupno += 0.40
             
-            # Stavka izvod
             data.append({"Datum": data[0]["Datum"], "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
             
             st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
-            
-            # Prikaz tablice sa svim podacima
             st.table(data)
             
             hub3_data = generate_hub3(data)

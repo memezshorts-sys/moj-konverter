@@ -5,64 +5,36 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import io
 
-# --- 1. DIZAJN I STILIZACIJA (Panda stil - Dark Mode s vodenim žigom) ---
-st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", layout="centered")
+# --- 1. DIZAJN I STILIZACIJA ---
+st.set_page_config(page_title="Panda Lucced Konverter", page_icon="🐼", layout="centered")
 
 st.markdown("""
     <style>
-    /* Pozadina aplikacije */
-    .stApp { 
-        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); 
-    }
-    
-    /* VODENI ŽIG PREKO CIJELE STRANICE */
+    .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
-        position: fixed;
-        top: 50%;
-        left: 50%;
+        position: fixed; top: 50%; left: 50%;
         transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 8vw; /* Prilagođava se širini ekrana */
-        font-weight: 900;
-        color: rgba(255, 255, 255, 0.04); /* Vrlo diskretno prozirno */
-        white-space: nowrap;
-        pointer-events: none;
-        z-index: 0;
-        letter-spacing: 15px;
-        text-transform: uppercase;
+        font-size: 8vw; font-weight: 900;
+        color: rgba(255, 255, 255, 0.04);
+        white-space: nowrap; pointer-events: none; z-index: 0;
+        letter-spacing: 15px; text-transform: uppercase;
     }
-    
-    /* Osiguravanje da je sadržaj ispred vodenog žiga */
-    .block-container {
-        position: relative;
-        z-index: 1;
-    }
-    
-    /* Tekstovi */
+    .block-container { position: relative; z-index: 1; }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
-    
-    /* PRAVOKUTNIK ZA UPLOAD */
     [data-testid="stFileUploader"] {
         background-color: #d1d1d1 !important;
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
     }
-
-    /* GUMB UNUTAR UPLOADA */
     [data-testid="stFileUploader"] button {
         background-color: #000000 !important;
         color: #ffffff !important;
-        border: none !important;
         border-radius: 8px !important;
         font-weight: bold !important;
     }
-    
-    [data-testid="stFileUploader"] section div {
-        color: #1e1e2f !important; 
-    }
-
-    /* Stil za download gumb */
+    [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
         color: white !important;
@@ -74,15 +46,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📄 PDF u HUB3")
-st.write("### Prenesite pdf file u sivi okvir ispod")
+st.title("🐼 Panda -> Lucced Optimizer")
+st.write("### Pripremite PDF za automatski uvoz")
 
-# --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
+# --- 2. OPTIMIZIRANA EKSTRAKCIJA ---
+def clean_text(text):
+    """Čisti nazive za XML kompatibilnost."""
+    return re.sub(r'[^\w\s\-]', '', text).strip()
+
 def extract_all_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
-        text = ""
-        for page in pdf.pages:
-            text += page.extract_text() + "\n"
+        text = "\n".join([page.extract_text() or "" for page in pdf.pages])
     
     lines = [l.strip() for l in text.split('\n') if l.strip()]
     iban_pattern = re.compile(r'HR\d{19}')
@@ -99,56 +73,80 @@ def extract_all_transactions(pdf_file):
             amount = 0.0
             naziv = "Nepoznati Partner"
             
-            for offset in range(-2, 4):
+            # Naprednije pretraživanje iznosa i naziva u okolini IBAN-a
+            for offset in range(-3, 4):
                 if 0 <= i + offset < len(lines):
                     search_line = lines[i+offset]
+                    # Traženje iznosa
                     am_matches = amount_pattern.findall(search_line)
                     for am in am_matches:
                         val = float(am.replace('.', '').replace(',', '.'))
-                        if val > 1.0 and amount == 0.0:
+                        if val > 0.05 and amount == 0.0:
                             amount = val
-                    
-                    if naziv == "Nepoznati Partner" and len(search_line) > 3:
+                    # Traženje naziva (ako nije IBAN i nema brojeva)
+                    if naziv == "Nepoznati Partner" and len(search_line) > 2:
                         if not any(char.isdigit() for char in search_line) and "HR" not in search_line:
-                            naziv = search_line
+                            naziv = clean_text(search_line)
 
             if amount > 0:
                 detected_transactions.append({
                     "Konto": "2221",
-                    "Naziv": naziv[:35],
+                    "Naziv": naziv[:70], # Lucced podržava duže nazive
                     "IBAN": iban,
-                    "Duguje": "{:.2f}".format(amount),
-                    "Potražuje": "0.00"
+                    "Iznos": round(amount, 2)
                 })
     
     return detected_transactions, text
 
-# --- 3. GENERIRANJE HUB3 ---
-def generate_hub3(transactions):
+# --- 3. OPTIMIZIRANI XML ZA LUCCED (pain.001.001.03) ---
+def generate_pain001(transactions):
     ns = "urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"
     ET.register_namespace('', ns)
+    
     root = ET.Element("{%s}Document" % ns)
-    initn = ET.SubElement(root, "{%s}CstmrCdtTrfInitn" % ns)
-    grphdr = ET.SubElement(initn, "{%s}GrpHdr" % ns)
-    ET.SubElement(grphdr, "{%s}MsgId" % ns).text = f"ID-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    cstmr = ET.SubElement(root, "{%s}CstmrCdtTrfInitn" % ns)
+    
+    # Group Header
+    grphdr = ET.SubElement(cstmr, "{%s}GrpHdr" % ns)
+    ET.SubElement(grphdr, "{%s}MsgId" % ns).text = f"PANDA-{datetime.now().strftime('%Y%m%d%H%M%S')}"
     ET.SubElement(grphdr, "{%s}CreDtTm" % ns).text = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     ET.SubElement(grphdr, "{%s}NbOfTxs" % ns).text = str(len(transactions))
+    ET.SubElement(grphdr, "{%s}CtrlSum" % ns).text = "{:.2f}".format(sum(t['Iznos'] for t in transactions))
     
-    pmt_inf = ET.SubElement(initn, "{%s}PmtInf" % ns)
-    ET.SubElement(pmt_inf, "{%s}PmtInfId" % ns).text = "ISPLATA-" + datetime.now().strftime('%Y%m%d')
+    initg_pty = ET.SubElement(grphdr, "{%s}InitgPty" % ns)
+    ET.SubElement(initg_pty, "{%s}Nm" % ns).text = "PANDA KONVERTER"
+
+    # Payment Information
+    pmt_inf = ET.SubElement(cstmr, "{%s}PmtInf" % ns)
+    ET.SubElement(pmt_inf, "{%s}PmtInfId" % ns).text = "LUCCED-" + datetime.now().strftime('%Y%m%d')
     ET.SubElement(pmt_inf, "{%s}PmtMtd" % ns).text = "TRF"
+    ET.SubElement(pmt_inf, "{%s}NbOfTxs" % ns).text = str(len(transactions))
     
+    # Requested Execution Date
+    ET.SubElement(pmt_inf, "{%s}ReqdExctnDt" % ns).text = datetime.now().strftime('%Y-%m-%d')
+    
+    # Debtor (Ovo Lucced koristi za prepoznavanje računa platitelja)
+    dbtr = ET.SubElement(pmt_inf, "{%s}Dbtr" % ns)
+    ET.SubElement(dbtr, "{%s}Nm" % ns).text = "VLASTITI RACUN"
+    
+    # Transaction Loop
     for tx in transactions:
-        tx_inf = ET.SubElement(pmt_inf, "{%s}CdtTrfTxInf" % ns)
-        p_id = ET.SubElement(tx_inf, "{%s}PmtId" % ns)
-        ET.SubElement(p_id, "{%s}EndToEndId" % ns).text = "HR99"
-        amt = ET.SubElement(tx_inf, "{%s}Amt" % ns)
-        val = tx['Duguje'] if tx['Duguje'] != "0.00" else tx['Potražuje']
-        ET.SubElement(amt, "{%s}InstdAmt" % ns, {"Ccy": "EUR"}).text = str(val)
-        cdtr = ET.SubElement(tx_inf, "{%s}Cdtr" % ns)
+        cdt_tx = ET.SubElement(pmt_inf, "{%s}CdtTrfTxInf" % ns)
+        pmt_id = ET.SubElement(cdt_tx, "{%s}PmtId" % ns)
+        ET.SubElement(pmt_id, "{%s}EndToEndId" % ns).text = f"REF-{datetime.now().strftime('%M%S%f')[:8]}"
+        
+        amt = ET.SubElement(cdt_tx, "{%s}Amt" % ns)
+        ET.SubElement(amt, "{%s}InstdAmt" % ns, {"Ccy": "EUR"}).text = "{:.2f}".format(tx['Iznos'])
+        
+        cdtr = ET.SubElement(cdt_tx, "{%s}Cdtr" % ns)
         ET.SubElement(cdtr, "{%s}Nm" % ns).text = tx['Naziv']
-        rmt = ET.SubElement(tx_inf, "{%s}RmtInf" % ns)
-        ET.SubElement(rmt, "{%s}Ustrd" % ns).text = f"KONTO:{tx['Konto']} | {tx['Naziv']}"
+        
+        cdtr_acct = ET.SubElement(cdt_tx, "{%s}CdtrAcct" % ns)
+        id_tag = ET.SubElement(cdtr_acct, "{%s}Id" % ns)
+        ET.SubElement(id_tag, "{%s}IBAN" % ns).text = tx['IBAN']
+        
+        rmt = ET.SubElement(cdt_tx, "{%s}RmtInf" % ns)
+        ET.SubElement(rmt, "{%s}Ustrd" % ns).text = f"Uvoz Lucced | {tx['Naziv']}"
 
     output = io.BytesIO()
     output.write(b'<?xml version="1.0" encoding="UTF-8"?>\n')
@@ -156,33 +154,24 @@ def generate_hub3(transactions):
     tree.write(output, encoding="utf-8", xml_declaration=False)
     return output.getvalue()
 
-# --- 4. WEB SUČELJE ---
-uploaded_file = st.file_uploader("Povucite PDF izvadak ovdje", type="pdf")
+# --- 4. UI ---
+uploaded_file = st.file_uploader("Povucite PDF izvadak za Lucced", type="pdf")
 
 if uploaded_file:
     try:
-        data, raw_text = extract_all_transactions(uploaded_file)
-        
+        data, _ = extract_all_transactions(uploaded_file)
         if data:
-            ukupno = sum(float(tx["Duguje"]) for tx in data)
-            if "0,40" in raw_text:
-                data.append({"Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
-                ukupno += 0.40
-            
-            data.append({"Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
-            
-            st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
+            st.success(f"Pronađeno {len(data)} transakcija spremnih za Lucced.")
             st.table(data)
             
-            hub3_data = generate_hub3(data)
+            final_xml = generate_pain001(data)
             st.download_button(
-                label="⬇️ Preuzmi HUB3 datoteku",
-                data=hub3_data,
-                file_name=f"panda_izvod_{datetime.now().strftime('%H%M%S')}.hub3",
-                mime="application/octet-stream"
+                label="⬇️ Preuzmi OPTIMIZIRANI XML za Lucced",
+                data=final_xml,
+                file_name=f"lucced_import_{datetime.now().strftime('%d%m_%H%M')}.xml",
+                mime="application/xml"
             )
         else:
-            st.warning("Nije pronađena nijedna transakcija.")
-            
+            st.warning("Nisu pronađeni IBAN-ovi ili iznosi.")
     except Exception as e:
-        st.error(f"Greška: {e}")
+        st.error(f"Sustavna greška: {e}")

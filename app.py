@@ -6,7 +6,7 @@ from datetime import datetime
 import io
 
 # --- 1. DIZAJN I STILIZACIJA ---
-st.set_page_config(page_title="Panda Multi-Bank Konverter", page_icon="🐼", layout="wide")
+st.set_page_config(page_title="Panda Konverter", page_icon="🐼", layout="wide")
 
 st.markdown("""
     <style>
@@ -28,70 +28,51 @@ st.markdown("""
         padding: 30px !important;
     }
     [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
-    .stDownloadButton button {
-        background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
-        color: white !important;
-        border-radius: 50px !important;
-        font-weight: bold !important;
-        width: 100%;
-    }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🐼 Panda Multi-Bank (RBA & HPB)")
+st.title("🐼 Panda Multi-Bank (HPB & RBA)")
 
-# --- 2. FUNKCIJA ZA EKSTRAKCIJU PODATAKA ---
+# --- 2. FUNKCIJA ZA EKSTRAKCIJU ---
 def extract_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
-        text = ""
+        raw_text = ""
         for page in pdf.pages:
-            text += page.extract_text() + "\n"
+            raw_text += page.extract_text() + "\n"
     
-    # ISPRAVLJENA LINIJA (Osiguraj da je ovaj red kompletan):
-    lines =
+    # SKRAĆENA LINIJA (da izbjegnemo SyntaxError)
+    lines = [l.strip() for l in raw_text.split('\n') if l.strip()]
     
-    is_hpb = "HRVATSKA POSTANSKA BANKA" in text.upper()
+    is_hpb = "HRVATSKA POSTANSKA BANKA" in raw_text.upper()
     
-    iban_pattern = re.compile(r'HR\d{19}')
-    date_pattern = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
-    # Hvata iznos na kraju linije
-    amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})$')
+    iban_pat = re.compile(r'HR\d{19}')
+    date_pat = re.compile(r'(\d{2}\.\d{2}\.\d{4})')
+    amt_pat = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})$')
 
-    detected_transactions = []
+    results = []
     
     for i, line in enumerate(lines):
-        clean_line = line.replace(" ", "")
-        iban_match = iban_pattern.search(clean_line)
-        
-        if iban_match:
-            iban = iban_match.group(0)
-            datum = "-"
-            naziv = line.split(iban)[-1].strip()
+        clean_l = line.replace(" ", "")
+        if iban_pat.search(clean_l):
+            iban = iban_pat.search(clean_l).group(0)
+            datum, duguje, naziv = "-", 0.0, line.split(iban)[-1].strip()
             
-            # Ako je naziv prazan (čest slučaj kod HPB-a), uzmi red iznad
             if len(naziv) < 3 and i > 0:
                 naziv = lines[i-1]
 
-            duguje = 0.0
-            
-            # HPB pretraživanje (podaci su u blokovima ispod IBAN-a)
-            for offset in range(i, i + 6):
-                if 0 <= offset < len(lines):
-                    s_line = lines[offset]
+            # HPB/RBA blok pretraživanje
+            for off in range(i, i + 6):
+                if 0 <= off < len(lines):
+                    s_line = lines[off]
+                    dates = date_pat.findall(s_line)
+                    if dates: datum = dates[-1]
                     
-                    # Traženje datuma izvršenja
-                    dates = date_pattern.findall(s_line)
-                    if dates:
-                        datum = dates[-1]
-
-                    # Traženje iznosa (mora biti na kraju linije)
-                    am_match = amount_pattern.search(s_line)
-                    if am_match:
-                        val = float(am_match.group(1).replace('.', '').replace(',', '.'))
-                        duguje = val
+                    match_amt = amt_pat.search(s_line)
+                    if match_amt:
+                        duguje = float(match_amt.group(1).replace('.','').replace(',','.'))
 
             if duguje > 0:
-                detected_transactions.append({
+                results.append({
                     "Datum": datum,
                     "Konto": "2221",
                     "Naziv": naziv[:35],
@@ -100,36 +81,31 @@ def extract_transactions(pdf_file):
                     "Potražuje": "0.00"
                 })
 
-    return detected_transactions, "HPB" if is_hpb else "RBA/Ostalo"
+    return results, "HPB" if is_hpb else "RBA/Ostalo"
 
 # --- 3. WEB SUČELJE ---
-uploaded_file = st.file_uploader("Prenesite PDF izvadak (HPB ili RBA)", type="pdf")
+up_file = st.file_uploader("Prenesite PDF izvadak", type="pdf")
 
-if uploaded_file:
+if up_file:
     try:
-        data, bank_name = extract_transactions(uploaded_file)
-        
+        data, bank = extract_transactions(up_file)
         if data:
-            st.success(f"Analiza završena za format: **{bank_name}**")
+            st.success(f"Banka: **{bank}**")
+            suma = sum(float(t["Duguje"]) for t in data)
             
-            suma_duguje = sum(float(t["Duguje"]) for t in data)
-            
-            # Dodavanje završnog reda za Konto 1000
-            zadnji_datum = data[-1]["Datum"]
+            # Konto 1000 za kraj
             data.append({
-                "Datum": zadnji_datum,
+                "Datum": data[-1]["Datum"],
                 "Konto": "1000",
                 "Naziv": "UKUPAN IZVOD",
                 "IBAN": "",
                 "Duguje": "0.00",
-                "Potražuje": "{:.2f}".format(suma_duguje)
+                "Potražuje": "{:.2f}".format(suma)
             })
             
             st.table(data)
-            st.info(f"Suma za knjiženje: {suma_duguje:.2f} EUR")
-            
+            st.info(f"Ukupno: {suma:.2f} EUR")
         else:
-            st.warning("Nisu pronađeni podaci. Provjerite PDF datoteku.")
-            
+            st.warning("Nema podataka.")
     except Exception as e:
         st.error(f"Greška: {e}")

@@ -64,7 +64,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("📄 Panda PDF u HUB3")
+st.title("📄PDF u HUB3")
 st.write("### Prenesite izvadak u sivi okvir ispod")
 
 # --- 2. FUNKCIJA ZA EKSTRAKCIJU ---

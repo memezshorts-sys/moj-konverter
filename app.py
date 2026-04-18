@@ -1,3 +1,4 @@
+import streamlit as st
 import pdfplumber
 import re
 import xml.etree.ElementTree as ET
@@ -9,65 +10,35 @@ st.set_page_config(page_title="Panda Univerzalni Konverter", page_icon="🐼", l
 
 st.markdown("""
     <style>
-    /* Pozadina aplikacije */
-    .stApp { 
-        background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); 
-    }
-    
-    /* VODENI ŽIG PREKO CIJELE STRANICE */
+    .stApp { background: linear-gradient(135deg, #1e1e2f 0%, #2d3436 100%); }
     .stApp::before {
         content: 'PANDA KNJIGOVODSTVO';
-        position: fixed;
-        top: 50%;
-        left: 50%;
+        position: fixed; top: 50%; left: 50%;
         transform: translate(-50%, -50%) rotate(-30deg);
-        font-size: 8vw; /* Prilagođava se širini ekrana */
-        font-weight: 900;
-        color: rgba(255, 255, 255, 0.04); /* Vrlo diskretno prozirno */
-        white-space: nowrap;
-        pointer-events: none;
-        z-index: 0;
-        letter-spacing: 15px;
-        text-transform: uppercase;
+        font-size: 8vw; font-weight: 900;
+        color: rgba(255, 255, 255, 0.04);
+        white-space: nowrap; pointer-events: none; z-index: 0;
+        letter-spacing: 15px; text-transform: uppercase;
     }
-    
-    /* Osiguravanje da je sadržaj ispred vodenog žiga */
-    .block-container {
-        position: relative;
-        z-index: 1;
-    }
-    
-    /* Tekstovi */
+    .block-container { position: relative; z-index: 1; }
     html, body, [class*="st-"], h1, h2, h3, p, span, label { color: #ffffff !important; }
-    
-    /* PRAVOKUTNIK ZA UPLOAD */
     [data-testid="stFileUploader"] {
         background-color: #d1d1d1 !important;
         border: 2px solid #a0a0a0 !important;
         border-radius: 15px !important;
         padding: 30px !important;
     }
-
-    /* GUMB UNUTAR UPLOADA */
     [data-testid="stFileUploader"] button {
         background-color: #000000 !important;
         color: #ffffff !important;
-        border: none !important;
-        border-radius: 8px !important;
         font-weight: bold !important;
     }
-    
-    [data-testid="stFileUploader"] section div {
-        color: #1e1e2f !important; 
-    }
-
-    /* Stil za download gumb */
+    [data-testid="stFileUploader"] section div { color: #1e1e2f !important; }
     .stDownloadButton button {
         background: linear-gradient(90deg, #00d2ff 0%, #3a7bd5 100%) !important;
         color: white !important;
         border-radius: 50px !important;
         font-weight: bold !important;
-        border: none !important;
         width: 100%;
     }
     </style>
@@ -76,7 +47,7 @@ st.markdown("""
 st.title("📄 PDF u HUB3")
 st.write("### Prenesite pdf file u sivi okvir ispod")
 
-# --- FUNKCIJA ZA DATUM (DODANO) ---
+# --- FUNKCIJA ZA DATUM ---
 def extract_date(text):
     match = re.search(r'(\d{2}\.\d{2}\.\d{4})', text)
     return match.group(1) if match else "-"
@@ -86,9 +57,9 @@ def extract_all_transactions(pdf_file):
     with pdfplumber.open(pdf_file) as pdf:
         text = ""
         for page in pdf.pages:
-            text += page.extract_text() + "\n"
+            text += (page.extract_text() or "") + "\n"
     
-    lines = [l.strip() for l in text.split('\n') if l.strip()]
+    lines =
     iban_pattern = re.compile(r'HR\d{19}')
     amount_pattern = re.compile(r'(\d{1,3}(?:\.\d{3})*,\d{2})')
 
@@ -118,7 +89,7 @@ def extract_all_transactions(pdf_file):
 
             if amount > 0:
                 detected_transactions.append({
-                    "Datum": extract_date(text), # DODAN SAMO DATUM
+                    "Datum": extract_date(text),
                     "Konto": "2221",
                     "Naziv": naziv[:35],
                     "IBAN": iban,
@@ -169,16 +140,33 @@ if uploaded_file:
         data, raw_text = extract_all_transactions(uploaded_file)
         
         if data:
+            current_date = data[0]["Datum"]
+            # Prvo zbrajamo samo osnovne transakcije
             ukupno = sum(float(tx["Duguje"]) for tx in data)
-            current_date = data[0]["Datum"] # Koristimo datum iz prve transakcije
-
+            
+            # Dinamička provjera naknade (isčitava samo ako postoji u tekstu)
             if "0,40" in raw_text:
-                data.append({"Datum": current_date, "Konto": "4650", "Naziv": "Naknada banke", "IBAN": "", "Duguje": "0.40", "Potražuje": "0.00"})
+                data.append({
+                    "Datum": current_date, 
+                    "Konto": "4650", 
+                    "Naziv": "Naknada banke", 
+                    "IBAN": "", 
+                    "Duguje": "0.40", 
+                    "Potražuje": "0.00"
+                })
                 ukupno += 0.40
             
-            data.append({"Datum": current_date, "Konto": "1000", "Naziv": "Izvod", "IBAN": "", "Duguje": "0.00", "Potražuje": "{:.2f}".format(ukupno)})
+            # Završna stavka Izvoda (Konto 1000)
+            data.append({
+                "Datum": current_date, 
+                "Konto": "1000", 
+                "Naziv": "Izvod", 
+                "IBAN": "", 
+                "Duguje": "0.00", 
+                "Potražuje": "{:.2f}".format(ukupno)
+            })
             
-            st.success(f"Analiza završena! Broj stavki: {len(data)-2}")
+            st.success(f"Analiza završena! Broj transakcija: {len(data)- (2 if '0,40' in raw_text else 1)}")
             st.table(data)
             
             hub3_data = generate_hub3(data)
